@@ -47,6 +47,9 @@ public:
 
     static juce::String noteName (int pitchClass);
     static int pitchClassFromName (const juce::String& name); // "F#", "Gb", "a" ... -1 if invalid
+    /** "F#3" -> 54 (C4 = 60, same naming as the UI). Without an octave the octave of
+        `fallbackNote` is kept. Returns -1 if the text is not a note. */
+    static int noteFromName (const juce::String& text, int fallbackNote);
 
 private:
     ScaleLibrary();

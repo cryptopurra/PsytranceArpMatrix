@@ -86,7 +86,24 @@ private:
     juce::ComboBox rootBox, scaleBox;
     juce::ToggleButton lockToggle, autoMatchToggle;
     juce::Slider lengthSlider, densitySlider;
-    std::array<juce::TextButton, 4> pageButtons;
+    /** Bar button: left click shows the bar, right click locks it for the selected channel. */
+    struct PageButton final : public juce::TextButton
+    {
+        std::function<void()> onRightClick;
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; }
+            juce::TextButton::mouseDown (e);
+        }
+        void mouseUp (const juce::MouseEvent& e) override
+        {
+            if (! e.mods.isPopupMenu())
+                juce::TextButton::mouseUp (e);
+        }
+    };
+    std::array<PageButton, 4> pageButtons;
+    juce::Label pagesCaption;
+    void updatePageButtons();
     int page = 0;
 
     // matrix

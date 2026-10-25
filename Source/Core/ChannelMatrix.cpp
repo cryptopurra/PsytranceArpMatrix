@@ -57,12 +57,14 @@ void ChannelMatrix::initialiseDefault()
         ch.enabled = (c == 0);
         ch.userEdited = false;
         everGenerated[(size_t) c] = false;
+        barLocks[(size_t) c].fill (false);
     }
     regenerateChannel (0);
 }
 
 void ChannelMatrix::generateAll()
 {
+    const Pattern before = pattern;
     // generate in priority order so the groove channels shape the melodic ones
     juce::Array<int> order = getActiveChannels();
     std::stable_sort (order.begin(), order.end(), [this] (int a, int b)
@@ -90,13 +92,45 @@ void ChannelMatrix::generateAll()
         pattern.channels[(size_t) c].enabled = wasEnabled[(size_t) c];
 
     InterlockMatrix::resolveCollisions (pattern);
+    restoreLockedBars (before);
     touch();
+}
+
+void ChannelMatrix::setBarLocked (int c, int bar, bool locked) noexcept
+{
+    if (c >= 0 && c < kNumChannels && bar >= 0 && bar < kMaxSteps / 16)
+        barLocks[(size_t) c][(size_t) bar] = locked;
+    touch();
+}
+
+bool ChannelMatrix::isBarLocked (int c, int bar) const noexcept
+{
+    return c >= 0 && c < kNumChannels && bar >= 0 && bar < kMaxSteps / 16 && barLocks[(size_t) c][(size_t) bar];
+}
+
+bool ChannelMatrix::anyBarLocked (int c) const noexcept
+{
+    for (int b = 0; b < kMaxSteps / 16; ++b)
+        if (isBarLocked (c, b))
+            return true;
+    return false;
+}
+
+void ChannelMatrix::restoreLockedBars (const Pattern& before) noexcept
+{
+    for (int c = 0; c < kNumChannels; ++c)
+        for (int b = 0; b < kMaxSteps / 16; ++b)
+            if (barLocks[(size_t) c][(size_t) b])
+                for (int s = b * 16; s < b * 16 + 16; ++s)
+                    pattern.channels[(size_t) c].steps[(size_t) s] = before.channels[(size_t) c].steps[(size_t) s];
 }
 
 void ChannelMatrix::regenerateChannel (int c)
 {
     if (c < 0 || c >= kNumChannels)
         return;
+
+    const Pattern before = pattern; // locked bars survive any regeneration
 
     auto& ch = pattern.channels[(size_t) c];
     const auto matrix = buildMatrix (c);
@@ -106,11 +140,12 @@ void ChannelMatrix::regenerateChannel (int c)
     fresh.midiChannel = ch.midiChannel;
     fresh.userEdited = false;
     ch = fresh;
-    originals[(size_t) c] = fresh;
     everGenerated[(size_t) c] = true;
 
     if (pattern.numEnabled() > 1)
         InterlockMatrix::resolveCollisions (pattern);
+    restoreLockedBars (before);
+    originals[(size_t) c] = pattern.channels[(size_t) c];
     touch();
 }
 
@@ -235,6 +270,7 @@ void ChannelMatrix::setStep (int c, int step, const Step& s)
 
 void ChannelMatrix::applyVariation (int c, VariationStyle style, float amount)
 {
+    const Pattern before = pattern;
     for (int i = 0; i < kNumChannels; ++i)
         if ((c < 0 && pattern.channels[(size_t) i].enabled) || i == c)
         {
@@ -244,6 +280,7 @@ void ChannelMatrix::applyVariation (int c, VariationStyle style, float amount)
                    : ch;
             PatternGenerator::applyVariation (ch, style, amount, contextFor (i), rng);
         }
+    restoreLockedBars (before);
     touch();
 }
 
@@ -264,17 +301,21 @@ void ChannelMatrix::restoreOriginal (int c)
 
 void ChannelMatrix::randomizeVelocity (int c)
 {
+    const Pattern before = pattern;
     for (int i = 0; i < kNumChannels; ++i)
         if ((c < 0 && pattern.channels[(size_t) i].enabled) || i == c)
             PatternGenerator::randomizeVelocity (pattern.channels[(size_t) i], rng);
+    restoreLockedBars (before);
     touch();
 }
 
 void ChannelMatrix::randomizeGate (int c)
 {
+    const Pattern before = pattern;
     for (int i = 0; i < kNumChannels; ++i)
         if ((c < 0 && pattern.channels[(size_t) i].enabled) || i == c)
             PatternGenerator::randomizeGate (pattern.channels[(size_t) i], rng);
+    restoreLockedBars (before);
     touch();
 }
 

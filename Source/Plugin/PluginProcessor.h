@@ -36,6 +36,7 @@ namespace ParamID
     inline juce::String channelOn (int c)    { return "ch" + juce::String (c + 1) + "On"; }
     inline juce::String channelStyle (int c) { return "ch" + juce::String (c + 1) + "Style"; }
     inline juce::String channelMidi (int c)  { return "ch" + juce::String (c + 1) + "Midi"; }
+    inline juce::String channelPitch (int c) { return "ch" + juce::String (c + 1) + "Pitch"; }
 }
 
 /** MIDI generator plugin. Owns:
@@ -125,6 +126,7 @@ public:
         std::array<int, kNumChannels> lane { 1, 1, 1, 1 };  // piano roll lane: 0 hidden, 1 velocity, 2 gate
         std::array<float, kNumChannels> laneSize { 0.28f, 0.28f, 0.28f, 0.28f }; // lane height (fraction)
         int sizeIndex = 2;                                  // index into the SIZE menu (M)
+        int selectedChannel = 0;                            // channel the bar locks apply to
     } ui;
 
 private:
@@ -157,6 +159,7 @@ private:
     void pushUndo (bool coalesce);
     void restoreSnapshot (const ChannelMatrix& m);
     bool wasBypassed = false;
+    std::array<std::atomic<float>*, kNumChannels> pitchParams {};
     bool suppressListener = false;
     juce::String currentPresetName = "Init";
     KeyDetection importKey;

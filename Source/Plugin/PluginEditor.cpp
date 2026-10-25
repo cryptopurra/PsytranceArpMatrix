@@ -105,14 +105,29 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         pageButtons[(size_t) i].setButtonText (pageNames[i]);
         pageButtons[(size_t) i].setClickingTogglesState (false);
         pageButtons[(size_t) i].onClick = [this, i] { setPage (i); };
+        pageButtons[(size_t) i].onRightClick = [this, i]
+        {
+            const int c = proc.ui.selectedChannel;
+            const bool lock = ! proc.getMatrix().isBarLocked (c, i);
+            proc.editMatrix ([c, i, lock] (ChannelMatrix& m) { m.setBarLocked (c, i, lock); });
+            setStatus ((lock ? "Locked bar " : "Unlocked bar ") + juce::String (i + 1) + " of channel " + juce::String (c + 1)
+                       + (lock ? " (kept by Roll / Generate)" : ""));
+        };
+        pageButtons[(size_t) i].setTooltip ("Left click: show these 16 steps. Right click: lock / unlock this bar "
+                                             "for the selected channel, so Roll / Generate do not change it.");
         content.addAndMakeVisible (pageButtons[(size_t) i]);
     }
+
+    pagesCaption.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+    pagesCaption.setColour (juce::Label::textColourId, kAccent.withAlpha (0.75f));
+    content.addAndMakeVisible (pagesCaption);
 
     //--- matrix ------------------------------------------------------------------
     for (int c = 0; c < kNumChannels; ++c)
     {
         strips[(size_t) c] = std::make_unique<ChannelStripComponent> (proc, c, kChannelColours[(size_t) c]);
         strips[(size_t) c]->onLayoutChanged = [this] { layoutContent(); };
+        strips[(size_t) c]->onSelected = [this] { updatePageButtons(); for (auto& s : strips) s->repaint(); };
         content.addAndMakeVisible (*strips[(size_t) c]);
     }
 
@@ -330,6 +345,7 @@ void PluginEditor::layoutContent()
     placeWithCaption (lengthSlider, keyRow.removeFromLeft (sliderW));
     keyRow.removeFromLeft (8);
     placeWithCaption (densitySlider, keyRow.removeFromLeft (sliderW));
+    pagesCaption.setBounds (pages.translated (0, -16).withHeight (16));
     for (auto& b : pageButtons)
         b.setBounds (pages.removeFromLeft (60).reduced (2, 0));
 
@@ -430,11 +446,26 @@ void PluginEditor::layoutContent()
 void PluginEditor::setPage (int p)
 {
     page = p;
-    for (int i = 0; i < 4; ++i)
-        pageButtons[(size_t) i].setColour (juce::TextButton::buttonColourId,
-                                           i == p ? kAccent.darker (0.4f) : juce::Colour (0xff15304a));
+    updatePageButtons();
     for (auto& s : strips)
         s->setPage (p);
+}
+
+void PluginEditor::updatePageButtons()
+{
+    const int c = proc.ui.selectedChannel;
+    const char* names[] = { "1-16", "17-32", "33-48", "49-64" };
+    for (int i = 0; i < 4; ++i)
+    {
+        auto& b = pageButtons[(size_t) i];
+        const bool locked = proc.getMatrix().isBarLocked (c, i);
+        b.setButtonText (locked ? juce::String::fromUTF8 ("\xe2\x96\xa0 ") + names[i] : juce::String (names[i]));
+        auto col = i == page ? kAccent.darker (0.4f) : juce::Colour (0xff15304a);
+        if (locked)
+            col = col.interpolatedWith (juce::Colour (0xffff9d3b), 0.6f);
+        b.setColour (juce::TextButton::buttonColourId, col);
+    }
+    pagesCaption.setText ("BARS  CH " + juce::String (c + 1) + "  (right-click = lock)", juce::dontSendNotification);
 }
 
 void PluginEditor::refreshAll()
@@ -447,6 +478,7 @@ void PluginEditor::refreshAll()
     const int len = proc.getMatrix().getLength();
     for (int i = 0; i < 4; ++i)
         pageButtons[(size_t) i].setEnabled (i * 16 < len);
+    updatePageButtons();
     if (page * 16 >= len)
         setPage (0);
 

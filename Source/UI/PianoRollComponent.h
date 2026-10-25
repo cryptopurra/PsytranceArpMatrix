@@ -20,6 +20,7 @@ namespace pam
             right-click note          menu (accent, slide, chord, octave, select all, delete)
             drag the lane border      resize the lane (double-click: default size)
             wheel                     scroll pitch      (horizontal wheel: scroll time)
+            hold the wheel + move     pan the view (time and pitch)
             Ctrl + wheel              horizontal zoom
             Shift + wheel             vertical zoom
     Lane (bottom, can be hidden):     drag to draw velocity or gate per step */
@@ -79,7 +80,9 @@ private:
     float topNote = 84.0f;     // pitch at the top edge
 
     // drag state
-    enum class Drag { None, Move, Resize, Create, Lane, LaneSplit, Select };
+    enum class Drag { None, Move, Resize, Create, Lane, LaneSplit, Select, Pan };
+    double panStartStep = 0.0;
+    float panStartTop = 0.0f;
     Drag drag = Drag::None;
     int dragStep = -1, dragStartNote = 60, currentStep = -1;
     float dragStartGate = 0.5f;

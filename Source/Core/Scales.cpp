@@ -139,6 +139,33 @@ juce::String ScaleLibrary::noteName (int pitchClass)
     return names[((pitchClass % 12) + 12) % 12];
 }
 
+int ScaleLibrary::noteFromName (const juce::String& textIn, int fallbackNote)
+{
+    auto text = textIn.trim().removeCharacters (" ");
+    if (text.isEmpty())
+        return -1;
+    if (text.containsOnly ("0123456789"))
+        return juce::jlimit (0, 127, text.getIntValue()); // plain MIDI number
+
+    int i = 1;
+    while (i < text.length() && (text[i] == '#' || text[i] == 'b' || text[i] == 'B'))
+        ++i;
+    const int pc = pitchClassFromName (text.substring (0, i));
+    if (pc < 0)
+        return -1;
+
+    const auto octText = text.substring (i);
+    int octave;
+    if (octText.isEmpty())
+        octave = fallbackNote / 12 - 1;
+    else if (octText.containsOnly ("-0123456789"))
+        octave = octText.getIntValue();
+    else
+        return -1;
+
+    return juce::jlimit (0, 127, (octave + 1) * 12 + pc);
+}
+
 int ScaleLibrary::pitchClassFromName (const juce::String& nameIn)
 {
     auto name = nameIn.trim().toUpperCase();

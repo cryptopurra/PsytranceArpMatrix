@@ -14,6 +14,8 @@ public:
     void setPage (int page)  { grid.setPage (page); }
     bool isPianoRoll() const noexcept { return proc.ui.view[(size_t) channel] == 1; }
     std::function<void()> onLayoutChanged;     // view switched: the editor re-distributes heights
+    std::function<void()> onSelected;          // clicked: becomes the selected channel
+    void mouseDown (const juce::MouseEvent&) override;
     void refresh();
     void resized() override;
     void paint (juce::Graphics&) override;
@@ -24,7 +26,7 @@ private:
     juce::Colour colour;
 
     juce::ToggleButton onButton;
-    juce::ComboBox styleBox, midiBox;
+    juce::ComboBox styleBox, midiBox, pitchBox;
     juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" };
     juce::Label stats;
     StepGridComponent grid;
@@ -34,6 +36,6 @@ private:
     bool compact = false;     // collapsed row (too small for the grid)
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment, pitchAttachment;
 };
 } // namespace pam

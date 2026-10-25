@@ -13,6 +13,7 @@ namespace pam
             shift + drag     velocity
             alt/option-click accent
             mouse wheel      note up/down by scale degree (shift + wheel: velocity)
+            double-click the note name: type a note (e.g. F#3, Gb2, A4 or a MIDI number)
             right-click      menu (accent, slide, chord size, gate, octave, clear) */
 class StepGridComponent final : public juce::Component
 {
@@ -28,12 +29,17 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
 
 private:
     int stepAt (juce::Point<float> pos) const noexcept;
     juce::Rectangle<float> cellBounds (int cell) const noexcept;
     void showMenu (int step);
     void modifyStep (int step, const std::function<void (Step&)>& fn);
+
+    void finishNoteEdit (bool apply);
+    std::unique_ptr<juce::TextEditor> noteEditor;
+    int editingStep = -1;
 
     PluginProcessor& proc;
     int channel = 0;

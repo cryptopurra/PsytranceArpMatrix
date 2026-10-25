@@ -49,6 +49,12 @@ public:
     juce::Array<int> getActiveChannels() const;
 
     void setChannelStyle (int channel, GeneratorStyle style, bool regenerate = true);
+
+    /** Bar locks (bars of 16 steps): locked bars keep their notes through Roll / Generate,
+        re-activation, variations and velocity / gate randomisation. */
+    void setBarLocked (int channel, int bar, bool locked) noexcept;
+    bool isBarLocked (int channel, int bar) const noexcept;
+    bool anyBarLocked (int channel) const noexcept;
     void setChannelMidiChannel (int channel, int midiChannel);
 
     //=== editing ================================================================
@@ -68,6 +74,7 @@ public:
 
 private:
     InterlockMatrix buildMatrix (int excludingChannel) const;
+    void restoreLockedBars (const Pattern& before) noexcept;
     int  questionChannel() const noexcept;
     void touch() noexcept { ++version; }
 
@@ -75,6 +82,7 @@ private:
     std::array<ChannelPattern, kNumChannels> originals {};
     std::array<bool, kNumChannels> everGenerated {};
     std::array<int, kNumChannels> octaves {};
+    std::array<std::array<bool, kMaxSteps / 16>, kNumChannels> barLocks {};
     bool lock = true;
     float density = 1.0f;
     int version = 0;

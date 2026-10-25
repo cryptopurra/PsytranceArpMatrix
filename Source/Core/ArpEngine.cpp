@@ -310,7 +310,7 @@ void ArpEngine::triggerStep (juce::int64 k, int offset, double samplesPerStep,
         const int outChannel = p.mergeToChannel1 ? 1 : ch.midiChannel;
         for (int i = 0; i < numNotes; ++i)
         {
-            int note = notes[(size_t) i] + 12 * p.octave;
+            int note = notes[(size_t) i] + 12 * p.octave + p.channelTranspose[(size_t) c];
             if (p.lockToScale)
                 note = ScaleLibrary::quantize (note, root, scale);
             noteOn (out, outChannel, note, velocity, offset, lengthSamples);

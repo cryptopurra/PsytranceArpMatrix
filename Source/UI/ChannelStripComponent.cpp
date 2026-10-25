@@ -20,10 +20,17 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
                         "Ignored when OUTPUT is set to Master.");
     addAndMakeVisible (midiBox);
 
+    for (int i = -24; i <= 24; ++i)
+        pitchBox.addItem ((i > 0 ? "+" : "") + juce::String (i) + " st", i + 25);
+    pitchBox.setScrollWheelEnabled (true);
+    pitchBox.setTooltip ("Pitch of this channel only, in semitones (mouse wheel to change)");
+    addAndMakeVisible (pitchBox);
+
     auto& state = proc.getState();
     onAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, ParamID::channelOn (c), onButton);
     styleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelStyle (c), styleBox);
     midiAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelMidi (c), midiBox);
+    pitchAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelPitch (c), pitchBox);
 
     regenButton.setTooltip ("Regenerate this channel only (others stay untouched)");
     regenButton.onClick = [this] { proc.editMatrix ([ch = channel] (ChannelMatrix& m) { m.regenerateChannel (ch); }); };
@@ -74,7 +81,18 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
     addAndMakeVisible (viewButton);
     addAndMakeVisible (laneButton);
     updateViewButtons();
+    addMouseListener (this, true); // clicks anywhere in the row select the channel
     refresh();
+}
+
+void ChannelStripComponent::mouseDown (const juce::MouseEvent&)
+{
+    if (proc.ui.selectedChannel != channel)
+    {
+        proc.ui.selectedChannel = channel;
+        if (onSelected)
+            onSelected();
+    }
 }
 
 void ChannelStripComponent::updateViewButtons()
@@ -95,9 +113,10 @@ void ChannelStripComponent::refresh()
 {
     const auto& ch = proc.getMatrix().getPattern().channels[(size_t) channel];
     const bool master = proc.getState().getRawParameterValue (ParamID::mergeOut)->load() > 0.5f;
-    stats.setText ((master ? juce::String ("-> master ch 1") : "-> ch " + juce::String (ch.midiChannel))
-                   + "  |  " + juce::String (ch.countActive()) + " notes"
-                   + (ch.userEdited ? "  |  edited" : ""), juce::dontSendNotification);
+    juce::ignoreUnused (master);
+    stats.setText (juce::String (ch.countActive()) + (ch.userEdited ? " nt*" : " nt"), juce::dontSendNotification);
+    stats.setTooltip (juce::String (ch.countActive()) + " notes" + (ch.userEdited ? " (edited)" : "")
+                      + (master ? ", MIDI OUTPUT = Master: sent on channel 1" : ", sent on MIDI channel " + juce::String (ch.midiChannel)));
     const bool on = ch.enabled;
     for (auto* b : { &regenButton, &varButton, &velButton, &gateButton })
         b->setEnabled (on);
@@ -111,6 +130,11 @@ void ChannelStripComponent::paint (juce::Graphics& g)
     g.fillRoundedRectangle (getLocalBounds().toFloat(), 6.0f);
     g.setColour (colour.withAlpha (proc.getMatrix().isChannelEnabled (channel) ? 0.9f : 0.25f));
     g.fillRoundedRectangle (getLocalBounds().removeFromLeft (4).toFloat(), 2.0f);
+    if (proc.ui.selectedChannel == channel)
+    {
+        g.setColour (colour.withAlpha (0.7f));
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 6.0f, 1.2f);
+    }
 }
 
 void ChannelStripComponent::resized()
@@ -129,6 +153,7 @@ void ChannelStripComponent::resized()
         onButton.setBounds (row.removeFromLeft (70));
         styleBox.setBounds (row.removeFromLeft (150).reduced (2, 0));
         midiBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
+        pitchBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
         viewButton.setBounds (row.removeFromLeft (100).reduced (2, 0));
         row.removeFromLeft (8);
         stats.setBounds (row);
@@ -151,8 +176,10 @@ void ChannelStripComponent::resized()
 
     left.removeFromTop (4);
     auto row3 = left.removeFromTop (22);
-    midiBox.setBounds (row3.removeFromLeft (76));
-    row3.removeFromLeft (6);
+    midiBox.setBounds (row3.removeFromLeft (70));
+    row3.removeFromLeft (3);
+    pitchBox.setBounds (row3.removeFromLeft (72));
+    row3.removeFromLeft (4);
     stats.setBounds (row3);
 
     left.removeFromTop (4);

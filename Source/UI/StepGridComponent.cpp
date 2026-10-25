@@ -172,6 +172,57 @@ void StepGridComponent::mouseUp (const juce::MouseEvent&)
     proc.endGesture();
 }
 
+void StepGridComponent::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    const int s = stepAt (e.position);
+    const auto& ch = proc.getMatrix().getPattern().channels[(size_t) channel];
+    if (s >= ch.length)
+        return;
+
+    // double-click toggled the step twice (click + click): make sure it is on, then edit its name
+    modifyStep (s, [] (Step& st) { st.active = true; });
+
+    const int cell = s - page * 16;
+    auto r = cellBounds (cell).toNearestInt().withHeight (20).translated (0, 1);
+    noteEditor = std::make_unique<juce::TextEditor>();
+    noteEditor->setJustification (juce::Justification::centred);
+    noteEditor->setFont (juce::FontOptions (12.0f, juce::Font::bold));
+    noteEditor->setText (ScaleLibrary::noteName (ch.steps[(size_t) s].note) + juce::String (ch.steps[(size_t) s].note / 12 - 1));
+    noteEditor->selectAll();
+    noteEditor->setBounds (r.expanded (6, 0));
+    noteEditor->onReturnKey = [this] { finishNoteEdit (true); };
+    noteEditor->onEscapeKey = [this] { finishNoteEdit (false); };
+    noteEditor->onFocusLost = [this] { finishNoteEdit (true); };
+    editingStep = s;
+    addAndMakeVisible (*noteEditor);
+    noteEditor->grabKeyboardFocus();
+}
+
+void StepGridComponent::finishNoteEdit (bool apply)
+{
+    if (noteEditor == nullptr || editingStep < 0)
+        return;
+
+    const int s = editingStep;
+    const auto text = noteEditor->getText();
+    editingStep = -1;
+
+    if (apply)
+    {
+        const int current = proc.getMatrix().getPattern().channels[(size_t) channel].steps[(size_t) s].note;
+        const int note = ScaleLibrary::noteFromName (text, current);
+        if (note >= 0)
+            modifyStep (s, [note] (Step& st) { st.note = (int8_t) note; st.active = true; });
+    }
+
+    // delete asynchronously: we may be inside one of the editor's own callbacks
+    juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<StepGridComponent> (this)]
+    {
+        if (safe != nullptr)
+            safe->noteEditor.reset();
+    });
+}
+
 void StepGridComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
     const int s = stepAt (e.position);

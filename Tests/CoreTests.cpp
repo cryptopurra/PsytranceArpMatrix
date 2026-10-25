@@ -44,6 +44,12 @@ public:
         expectEquals (ScaleLibrary::pitchClassFromName ("F#"), 6);
         expectEquals (ScaleLibrary::pitchClassFromName ("Gb"), 6);
         expectEquals (ScaleLibrary::pitchClassFromName ("a"), 9);
+        expectEquals (ScaleLibrary::noteFromName ("F#3", 60), 54);
+        expectEquals (ScaleLibrary::noteFromName ("Gb3", 60), 54);
+        expectEquals (ScaleLibrary::noteFromName ("c4", 30), 60);
+        expectEquals (ScaleLibrary::noteFromName ("A", 62), 69);   // keeps the octave of the old note (D4 -> A4)
+        expectEquals (ScaleLibrary::noteFromName ("72", 0), 72);
+        expectEquals (ScaleLibrary::noteFromName ("xyz", 60), -1);
     }
 };
 
@@ -170,6 +176,27 @@ public:
         for (int s : { 3, 7, 11, 15 })
             hits += st.getPattern().channels[0].steps[(size_t) s].active ? 1 : 0;
         expect (hits >= 2);
+
+        beginTest ("locked bars survive Roll / Generate / re-activation");
+        {
+            ChannelMatrix lk;
+            lk.setSeed (21);
+            lk.setLength (32);
+            lk.initialiseDefault();
+            lk.setBarLocked (0, 1, true);
+            const auto kept = lk.getPattern().channels[0];
+            for (int i = 0; i < 10; ++i)
+            {
+                lk.generateAll();
+                lk.regenerateChannel (0);
+                lk.applyVariation (0, VariationStyle::Contour, 1.0f);
+                lk.randomizeVelocity (0);
+                lk.setChannelEnabled (1, i % 2 == 0);
+            }
+            for (int s = 16; s < 32; ++s)
+                expect (lk.getPattern().channels[0].steps[(size_t) s] == kept.steps[(size_t) s]);
+            expect (lk.isBarLocked (0, 1) && ! lk.isBarLocked (0, 0));
+        }
 
         beginTest ("disable keeps data, re-enable regenerates complementary part");
         m.setChannelEnabled (3, false);

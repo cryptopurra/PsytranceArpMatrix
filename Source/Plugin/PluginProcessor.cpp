@@ -78,6 +78,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
                                                        PatternSerializer::styleNames(), (int) defaultStyleForChannel (c)));
         l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelMidi (c), 1 },
                                                     "Ch" + String (c + 1) + " MIDI Out Channel", 1, 16, c + 1));
+        l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelPitch (c), 1 },
+                                                    "Ch" + String (c + 1) + " Pitch", -24, 24, 0));
     }
     return l;
 }
@@ -99,6 +101,9 @@ PluginProcessor::PluginProcessor()
         apvts.addParameterListener (ParamID::channelStyle (c), this);
         apvts.addParameterListener (ParamID::channelMidi (c), this);
     }
+
+    for (int c = 0; c < kNumChannels; ++c)
+        pitchParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelPitch (c));
 
     presets.ensureFolderStructure();
     presets.installFactoryPresets (getFactoryPresets(), false);
@@ -158,6 +163,8 @@ ArpParams PluginProcessor::readArpParams() const
     p.playWithoutKeys = value (apvts, ParamID::freeRun) > 0.5f;
     p.mergeToChannel1 = value (apvts, ParamID::mergeOut) > 0.5f;
     p.internalBpm     = (float) audioPattern.bpm;
+    for (int c = 0; c < kNumChannels; ++c)
+        p.channelTranspose[(size_t) c] = juce::roundToInt (pitchParams[(size_t) c]->load()); // cached: no allocation
     return p;
 }
 
@@ -501,6 +508,8 @@ MultiMidiExporter::Options PluginProcessor::exportOptions() const
     o.octave = juce::roundToInt (value (apvts, ParamID::octave));
     o.lockToScale = value (apvts, ParamID::lock) > 0.5f;
     o.baseName = PresetManager::sanitiseName (currentPresetName);
+    for (int c = 0; c < kNumChannels; ++c)
+        o.channelTranspose[(size_t) c] = juce::roundToInt (value (apvts, ParamID::channelPitch (c)));
     return o;
 }
 
@@ -553,6 +562,11 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& dest)
     state.setProperty ("uiViews", views, nullptr);
     state.setProperty ("uiLanes", lanes, nullptr);
     state.setProperty ("uiSizeV2", ui.sizeIndex, nullptr);
+    juce::String locks;
+    for (int c = 0; c < kNumChannels; ++c)
+        for (int b = 0; b < kMaxSteps / 16; ++b)
+            locks << (matrix.isBarLocked (c, b) ? "1" : "0");
+    state.setProperty ("barLocks", locks, nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
@@ -589,6 +603,12 @@ void PluginProcessor::setStateInformation (const void* data, int size)
         matrix.setLockToScale (value (apvts, ParamID::lock) > 0.5f);
         matrix.setDensity (value (apvts, ParamID::density) / 100.0f);
         matrix.setPattern (p);
+    }
+    {
+        const auto locks = tree.getProperty ("barLocks", "").toString();
+        for (int c = 0; c < kNumChannels; ++c)
+            for (int b = 0; b < kMaxSteps / 16; ++b)
+                matrix.setBarLocked (c, b, locks.substring (c * 4 + b, c * 4 + b + 1) == "1");
     }
 
     publishPattern();

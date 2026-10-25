@@ -81,7 +81,7 @@ juce::MidiMessageSequence MultiMidiExporter::buildChannelSequence (const Pattern
 
         for (int n : notes)
         {
-            n += 12 * o.octave;
+            n += 12 * o.octave + o.channelTranspose[(size_t) c];
             if (o.lockToScale)
                 n = ScaleLibrary::quantize (n, p.rootNote, scale);
             n = juce::jlimit (0, 127, n);

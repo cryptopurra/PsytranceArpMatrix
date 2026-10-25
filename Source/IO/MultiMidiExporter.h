@@ -24,6 +24,7 @@ public:
         int    octave      = 0;
         bool   lockToScale = true;
         juce::String baseName = "PsyArp";
+        std::array<int, kNumChannels> channelTranspose {};  // per-channel pitch (semitones)
     };
 
     /** Notes of one channel, timestamps in ticks (ppq = opts.ppq). */

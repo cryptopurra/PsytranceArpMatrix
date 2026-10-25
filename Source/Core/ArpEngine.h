@@ -22,6 +22,7 @@ struct ArpParams
     bool  playWithoutKeys = true; // pattern runs with transport even without held keys
     bool  mergeToChannel1 = false;// all channels out on MIDI ch 1 (single-instrument hosts)
     float internalBpm    = 142.0f;
+    std::array<int, kNumChannels> channelTranspose {}; // per-channel pitch (semitones)
 };
 
 /** Real-time engine: turns the pattern + held keys + host position into MIDI.

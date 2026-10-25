@@ -395,6 +395,17 @@ bool PianoRollComponent::isOnLaneBorder (juce::Point<int> p) const
 void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
 {
     drag = Drag::None;
+
+    if (e.mods.isMiddleButtonDown())
+    {
+        // hold the wheel and move: pan the view
+        drag = Drag::Pan;
+        panStartStep = scrollStep;
+        panStartTop = topNote;
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+        return;
+    }
+
     proc.beginGesture();
 
     if (isOnLaneBorder (e.getPosition()))
@@ -504,6 +515,13 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
 {
     switch (drag)
     {
+        case Drag::Pan:
+            scrollStep = panStartStep - e.getDistanceFromDragStartX() / (double) pxPerStep;
+            topNote = panStartTop + (float) e.getDistanceFromDragStartY() / rowHeight;
+            clampView();
+            repaint();
+            break;
+
         case Drag::LaneSplit:
         {
             const float frac = ((float) getHeight() - e.position.y) / (float) juce::jmax (1, getHeight());
