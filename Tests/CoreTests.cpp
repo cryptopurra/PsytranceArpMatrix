@@ -207,6 +207,25 @@ public:
                 expect (back.channels[(size_t) c].steps[(size_t) s].note == m.getPattern().channels[(size_t) c].steps[(size_t) s].note);
         }
 
+        beginTest ("loads presets written by tools/import_midi_library.py");
+        {
+            auto ext = tmp.getChildFile ("external.json");
+            ext.replaceWithText (R"({"format":"PsytranceArpMatrix","version":1,"name":"x","bpm":145.0,"key":"E","rootNote":4,
+                "scale":"Phrygian","length":16,"lock":false,"channels":[
+                {"index":1,"enabled":true,"style":"Acid","midiChannel":1,"length":16,"steps":[
+                 {"note":40,"velocity":110,"gate":0.5,"slide":false,"accent":true,"active":true,"chord":1},
+                 {"note":52,"velocity":90,"gate":1.2,"slide":true,"accent":false,"active":true,"chord":1}]},
+                {"index":2,"enabled":false,"style":"FM Lead","midiChannel":2,"length":16,"steps":[]}]})");
+            Pattern ep;
+            PresetMeta em;
+            expect (PresetManager (tmp).loadPreset (ext, ep, &em));
+            expectEquals (ep.rootNote, 4);
+            expect (ep.channels[0].enabled && ! ep.channels[1].enabled);
+            expectEquals ((int) ep.channels[0].steps[1].note, 52);
+            expect (ep.channels[0].steps[1].slide);
+            expect (! em.lockToScale);
+        }
+
         beginTest ("folder structure + quick save");
         PresetManager pm (tmp.getChildFile ("PsytranceArpMatrix"));
         expect (pm.ensureFolderStructure());

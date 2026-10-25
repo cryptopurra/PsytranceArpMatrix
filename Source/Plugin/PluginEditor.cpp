@@ -347,27 +347,38 @@ void PluginEditor::setStatus (const juce::String& s)
 void PluginEditor::showPresetMenu()
 {
     auto& pm = proc.getPresetManager();
-    juce::PopupMenu menu;
-    std::vector<juce::File> files;
+    auto files = std::make_shared<std::vector<juce::File>>();
 
-    for (auto& cat : pm.getCategories())
+    // folders become sub-menus (recursively), so a large imported library stays browsable:
+    // Presets/Library/<Category>/<Pack>/<preset>.json
+    std::function<juce::PopupMenu (const juce::File&)> buildMenu = [&] (const juce::File& dir)
     {
-        juce::PopupMenu sub;
-        for (auto& f : pm.getPresets (cat))
+        juce::PopupMenu m;
+        auto dirs = dir.findChildFiles (juce::File::findDirectories, false);
+        std::sort (dirs.begin(), dirs.end(), [] (const juce::File& a, const juce::File& b)
+                   { return a.getFileName().compareNatural (b.getFileName()) < 0; });
+        for (auto& d : dirs)
         {
-            files.push_back (f);
-            sub.addItem ((int) files.size(), f.getFileNameWithoutExtension());
+            auto sub = buildMenu (d);
+            if (sub.getNumItems() > 0)
+                m.addSubMenu (d.getFileName().replace ("_", " "), sub);
         }
-        menu.addSubMenu (cat.replace ("_", " "), sub);
-    }
 
-    juce::PopupMenu user;
-    for (auto& f : pm.getUserExportDir().findChildFiles (juce::File::findFiles, false, "*.json"))
-    {
-        files.push_back (f);
-        user.addItem ((int) files.size(), f.getFileNameWithoutExtension());
-    }
-    menu.addSubMenu ("User Exported", user);
+        auto jsons = dir.findChildFiles (juce::File::findFiles, false, "*.json");
+        std::sort (jsons.begin(), jsons.end(), [] (const juce::File& a, const juce::File& b)
+                   { return a.getFileName().compareNatural (b.getFileName()) < 0; });
+        for (auto& f : jsons)
+        {
+            files->push_back (f);
+            m.addItem ((int) files->size(), f.getFileNameWithoutExtension());
+        }
+        return m;
+    };
+
+    juce::PopupMenu menu = buildMenu (pm.getPresetsDir());
+    auto user = buildMenu (pm.getUserExportDir());
+    if (user.getNumItems() > 0)
+        menu.addSubMenu ("User Exported", user);
     menu.addSeparator();
     menu.addItem (100000, "Open preset folder");
 
@@ -376,9 +387,9 @@ void PluginEditor::showPresetMenu()
     {
         if (r == 100000)
             proc.getPresetManager().getRoot().startAsProcess();
-        else if (r > 0 && r <= (int) files.size())
+        else if (r > 0 && r <= (int) files->size())
         {
-            const auto& f = files[(size_t) (r - 1)];
+            const auto& f = (*files)[(size_t) (r - 1)];
             setStatus (proc.loadPreset (f) ? "Loaded " + f.getFileName() : "Could not load " + f.getFileName());
         }
     });

@@ -27,3 +27,6 @@ midi_library/
 
 # runtime caches
 Drag_Cache/
+
+# private presets converted from your own MIDI library (tools/import_midi_library.py)
+Presets/Library/

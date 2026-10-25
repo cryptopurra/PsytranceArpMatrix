@@ -82,7 +82,18 @@ python3 -I tools/analyze_midi_library.py /percorso/libreria_midi \
     --json build/style_profiles.json --header Source/Core/StyleProfilesData.h
 ```
 
-I preset di fabbrica sono generati dall'algoritmo stesso del plugin (`PamPresetBuilder Resources/PsytranceArpMatrix`), quindi sono materiale originale. Per usare i tuoi loop personali come preset privati basta trascinarli nel plugin e premere *SAVE AS*.
+I preset di fabbrica sono generati dall'algoritmo stesso del plugin (`PamPresetBuilder Resources/PsytranceArpMatrix`), quindi sono materiale originale.
+
+### La tua libreria MIDI come preset privati
+
+Per avere i tuoi loop (sample pack acquistati inclusi) come preset caricabili nel plugin, convertili **in locale**:
+
+```bash
+python3 -I tools/import_midi_library.py "C:/percorso/libreria_midi"
+# -> Documenti/PsytranceArpMatrix/Presets/Library/<Categoria>/<Pack>/<nome>.json
+```
+
+Ogni file viene quantizzato a 16° (max 64 step), ne viene rilevata tonica/scala, lo stile è scelto dal nome della cartella (bass/acid/arp/lead/stab) e i MIDI multi-canale riempiono più canali della matrice. Il Lock è disattivato in questi preset, così le note restano identiche all'originale. Nel menu PRESETS compaiono come `Library ▸ Categoria ▸ Pack`. Sono solo per uso personale: non vanno committati né condivisi (licenze dei pack). Singoli file si possono anche trascinare nel plugin e salvare con *SAVE AS*.
 
 ## Struttura del progetto
 
