@@ -36,7 +36,9 @@ namespace ParamID
     inline juce::String channelOn (int c)    { return "ch" + juce::String (c + 1) + "On"; }
     inline juce::String channelStyle (int c) { return "ch" + juce::String (c + 1) + "Style"; }
     inline juce::String channelMidi (int c)  { return "ch" + juce::String (c + 1) + "Midi"; }
-    inline juce::String channelPitch (int c) { return "ch" + juce::String (c + 1) + "Pitch"; }
+    inline juce::String channelOct (int c)   { return "ch" + juce::String (c + 1) + "Oct"; }
+    inline juce::String channelVoice (int c) { return "ch" + juce::String (c + 1) + "Voice"; }
+    inline juce::String channelGlide (int c) { return "ch" + juce::String (c + 1) + "Glide"; }
 }
 
 /** MIDI generator plugin. Owns:
@@ -159,7 +161,7 @@ private:
     void pushUndo (bool coalesce);
     void restoreSnapshot (const ChannelMatrix& m);
     bool wasBypassed = false;
-    std::array<std::atomic<float>*, kNumChannels> pitchParams {};
+    std::array<std::atomic<float>*, kNumChannels> octParams {}, voiceParams {}, glideParams {};
     bool suppressListener = false;
     juce::String currentPresetName = "Init";
     KeyDetection importKey;

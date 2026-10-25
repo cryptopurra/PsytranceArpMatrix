@@ -20,17 +20,36 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
                         "Ignored when OUTPUT is set to Master.");
     addAndMakeVisible (midiBox);
 
-    for (int i = -24; i <= 24; ++i)
-        pitchBox.addItem ((i > 0 ? "+" : "") + juce::String (i) + " st", i + 25);
-    pitchBox.setScrollWheelEnabled (true);
-    pitchBox.setTooltip ("Pitch of this channel only, in semitones (mouse wheel to change)");
-    addAndMakeVisible (pitchBox);
+    for (int i = -3; i <= 3; ++i)
+        octBox.addItem ("OCT " + juce::String (i > 0 ? "+" : "") + juce::String (i), i + 4);
+    octBox.setScrollWheelEnabled (true);
+    octBox.setTooltip ("Octave of this channel only (mouse wheel to change)");
+    addAndMakeVisible (octBox);
+
+    voiceBox.addItemList ({ "POLY", "MONO", "LEGATO" }, 1);
+    voiceBox.setScrollWheelEnabled (true);
+    voiceBox.setTooltip ("POLY: chords, free overlaps.  MONO: one note at a time, each note cuts the previous one, "
+                         "slide steps overlap (classic 303 glide with a legato synth).  LEGATO: every note is tied "
+                         "to the next (continuous legato / glide). Set the synth to mono + legato/portamento.");
+    addAndMakeVisible (voiceBox);
+
+    glideSlider.setSliderStyle (juce::Slider::LinearBar);
+    glideSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 0, 0);
+    glideSlider.setColour (juce::Slider::trackColourId, col.withAlpha (0.45f));
+    glideSlider.setTooltip ("Portamento time sent to the synth as MIDI CC5 (+ CC65 portamento on). "
+                            "Off = nothing is sent. MIDI-learn CC5 in the synth if it does not respond by default.");
+    addAndMakeVisible (glideSlider);
 
     auto& state = proc.getState();
     onAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, ParamID::channelOn (c), onButton);
     styleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelStyle (c), styleBox);
     midiAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelMidi (c), midiBox);
-    pitchAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelPitch (c), pitchBox);
+    octAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelOct (c), octBox);
+    voiceAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelVoice (c), voiceBox);
+    glideAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, ParamID::channelGlide (c), glideSlider);
+    // after the attachment (it installs its own text function)
+    glideSlider.textFromValueFunction = [] (double v) { return v < 0.5 ? juce::String ("GLIDE off") : "GLIDE " + juce::String (juce::roundToInt (v)); };
+    glideSlider.updateText();
 
     regenButton.setTooltip ("Regenerate this channel only (others stay untouched)");
     regenButton.onClick = [this] { proc.editMatrix ([ch = channel] (ChannelMatrix& m) { m.regenerateChannel (ch); }); };
@@ -105,7 +124,7 @@ void ChannelStripComponent::updateViewButtons()
     roll.setLane ((PianoRollComponent::Lane) l);
     grid.setVisible (! pr && ! compact);
     roll.setVisible (pr && ! compact);
-    for (auto* b : { &regenButton, &varButton, &velButton, &gateButton, &laneButton })
+    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &laneButton, &glideSlider })
         b->setVisible (! compact);
 }
 
@@ -153,14 +172,15 @@ void ChannelStripComponent::resized()
         onButton.setBounds (row.removeFromLeft (70));
         styleBox.setBounds (row.removeFromLeft (150).reduced (2, 0));
         midiBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
-        pitchBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
+        octBox.setBounds (row.removeFromLeft (84).reduced (2, 0));
+        voiceBox.setBounds (row.removeFromLeft (92).reduced (2, 0));
         viewButton.setBounds (row.removeFromLeft (100).reduced (2, 0));
         row.removeFromLeft (8);
         stats.setBounds (row);
         return;
     }
 
-    auto left = r.removeFromLeft (190);
+    auto left = r.removeFromLeft (236);
 
     auto row1 = left.removeFromTop (24);
     onButton.setBounds (row1.removeFromLeft (70));
@@ -178,14 +198,16 @@ void ChannelStripComponent::resized()
     auto row3 = left.removeFromTop (22);
     midiBox.setBounds (row3.removeFromLeft (70));
     row3.removeFromLeft (3);
-    pitchBox.setBounds (row3.removeFromLeft (72));
-    row3.removeFromLeft (4);
-    stats.setBounds (row3);
+    octBox.setBounds (row3.removeFromLeft (76));
+    row3.removeFromLeft (3);
+    voiceBox.setBounds (row3);
+    stats.setBounds ({});
 
     left.removeFromTop (4);
     auto row4 = left.removeFromTop (22);
-    viewButton.setBounds (row4.removeFromLeft (row4.getWidth() / 2).reduced (1, 0));
-    laneButton.setBounds (row4.reduced (1, 0));
+    viewButton.setBounds (row4.removeFromLeft (78).reduced (1, 0));
+    laneButton.setBounds (row4.removeFromLeft (78).reduced (1, 0));
+    glideSlider.setBounds (row4.reduced (1, 1));
 
     r.removeFromLeft (8);
     grid.setBounds (r);

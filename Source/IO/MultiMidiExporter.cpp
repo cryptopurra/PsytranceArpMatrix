@@ -56,6 +56,17 @@ juce::MidiMessageSequence MultiMidiExporter::buildChannelSequence (const Pattern
     const int len = juce::jlimit (1, kMaxSteps, ch.length);
     const double swingTicks = juce::jlimit (0.0f, 1.0f, o.swing) * ticksPerStep / 3.0;
     const int midiCh = juce::jlimit (1, 16, ch.midiChannel);
+    const auto voice = o.voiceMode[(size_t) c];
+
+    if (o.glide[(size_t) c] >= 0)
+    {
+        auto pt = juce::MidiMessage::controllerEvent (midiCh, 5, juce::jlimit (0, 127, o.glide[(size_t) c]));
+        auto pe = juce::MidiMessage::controllerEvent (midiCh, 65, o.glide[(size_t) c] > 0 ? 127 : 0);
+        pt.setTimeStamp (0);
+        pe.setTimeStamp (0);
+        seq.addEvent (pt);
+        seq.addEvent (pe);
+    }
 
     for (int k = 0; k < totalSteps; ++k)
     {
@@ -67,6 +78,16 @@ juce::MidiMessageSequence MultiMidiExporter::buildChannelSequence (const Pattern
         float gate = st.gate * o.gateScale;
         if (st.slide)
             gate = juce::jmax (gate, 1.08f);
+
+        // distance to the next active step (for mono cut / legato tie)
+        int dist = 1;
+        while (dist < len && ! ch.steps[(size_t) ((k + dist) % len)].active)
+            ++dist;
+        if (voice == VoiceMode::Legato)
+            gate = juce::jmax (gate, (float) dist + 0.06f);
+        else if (voice == VoiceMode::Mono && ! st.slide)
+            gate = juce::jmin (gate, (float) dist - 0.02f); // the next note cuts this one
+
         const double end = juce::jmin ((double) totalSteps * ticksPerStep, start + juce::jmax (0.02, (double) gate) * ticksPerStep);
 
         juce::Array<int> notes;
@@ -78,6 +99,8 @@ juce::MidiMessageSequence MultiMidiExporter::buildChannelSequence (const Pattern
         }
         else
             notes.add (st.note);
+        if (voice != VoiceMode::Poly && notes.size() > 1)
+            notes.resize (1);
 
         for (int n : notes)
         {

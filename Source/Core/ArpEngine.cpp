@@ -21,6 +21,7 @@ void ArpEngine::reset()
     lastTriggeredStep = -1;
     running = false;
     arpCounter.fill (0);
+    lastGlideSent.fill (-2);
     for (auto& s : playingStep)
         s.store (-1);
 }
@@ -79,7 +80,8 @@ void ArpEngine::handleInput (const juce::MidiBuffer& in, const ArpParams& p)
 }
 
 //==============================================================================
-void ArpEngine::noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int offset, int lengthSamples)
+void ArpEngine::noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int offset, int lengthSamples,
+                        int source, bool slide)
 {
     note = juce::jlimit (0, 127, note);
     channel = juce::jlimit (1, 16, channel);
@@ -102,7 +104,7 @@ void ArpEngine::noteOn (juce::MidiBuffer& out, int channel, int note, int veloci
         return;
 
     out.addEvent (juce::MidiMessage::noteOn (channel, note, (juce::uint8) juce::jlimit (1, 127, velocity)), offset);
-    sounding[(size_t) numSounding++] = { channel, note, offset + std::max (1, lengthSamples) };
+    sounding[(size_t) numSounding++] = { channel, note, offset + std::max (1, lengthSamples), source, slide };
 }
 
 void ArpEngine::flushNoteOffs (juce::MidiBuffer& out, int numSamples)
@@ -135,6 +137,7 @@ void ArpEngine::allSoundOff (juce::MidiBuffer& out, const ArpParams& p, int offs
 
 void ArpEngine::stopAll (juce::MidiBuffer& out, const ArpParams& p)
 {
+    lastGlideSent.fill (-2); // resend the glide controllers on the next start
     allNotesOff (out, 0);
     allSoundOff (out, p, 0);
     running = false;
@@ -143,6 +146,27 @@ void ArpEngine::stopAll (juce::MidiBuffer& out, const ArpParams& p)
     arpCounter.fill (0);
     for (auto& s : playingStep)
         s.store (-1);
+}
+
+void ArpEngine::sendGlideControllers (juce::MidiBuffer& out, const Pattern& pattern, const ArpParams& p)
+{
+    for (int c = 0; c < kNumChannels; ++c)
+    {
+        const int g = p.glide[(size_t) c];
+        if (g == lastGlideSent[(size_t) c] || ! pattern.channels[(size_t) c].enabled)
+            continue;
+        const int previous = lastGlideSent[(size_t) c];
+        lastGlideSent[(size_t) c] = g;
+        const int ch = p.mergeToChannel1 ? 1 : pattern.channels[(size_t) c].midiChannel;
+        if (g < 0)
+        {
+            if (previous > 0) // glide switched off: turn the synth's portamento off once
+                out.addEvent (juce::MidiMessage::controllerEvent (ch, 65, 0), 0);
+            continue;
+        }
+        out.addEvent (juce::MidiMessage::controllerEvent (ch, 5, juce::jlimit (0, 127, g)), 0);   // portamento time
+        out.addEvent (juce::MidiMessage::controllerEvent (ch, 65, g > 0 ? 127 : 0), 0);          // portamento on/off
+    }
 }
 
 void ArpEngine::allNotesOff (juce::MidiBuffer& out, int offset)
@@ -302,18 +326,50 @@ void ArpEngine::triggerStep (juce::int64 k, int offset, double samplesPerStep,
             case VelocityMode::numModes: break;
         }
 
+        const auto voice = p.voiceMode[(size_t) c];
+        if (voice != VoiceMode::Poly)
+            numNotes = std::min (numNotes, 1); // mono / legato: one note at a time
+
         float gate = st.gate * p.gateScale;
         if (st.slide)
             gate = std::max (gate, 1.08f); // overlap the next note -> legato / glide on mono synths
+        if (voice == VoiceMode::Legato)
+        {
+            // tie every note to the next active step (continuous legato / glide)
+            int dist = 1;
+            while (dist < len && ! ch.steps[(size_t) ((s + dist) % len)].active)
+                ++dist;
+            gate = std::max (gate, (float) dist + 0.06f);
+        }
         const int lengthSamples = std::max (16, (int) (gate * samplesPerStep));
 
         const int outChannel = p.mergeToChannel1 ? 1 : ch.midiChannel;
+
+        if (voice == VoiceMode::Mono)
+        {
+            // classic mono: the new note cuts the previous one, unless that one was a slide
+            int cutAt = std::max (0, std::max (offset, minNoteOnOffset) - 1);
+            for (int i = 0; i < numSounding;)
+            {
+                auto& sn = sounding[(size_t) i];
+                if (sn.source == c && ! sn.slide)
+                {
+                    if (offset == 0 && minNoteOnOffset == 0)
+                        offset = 1, cutAt = 0;
+                    out.addEvent (juce::MidiMessage::noteOff (sn.channel, sn.note), cutAt);
+                    sn = sounding[(size_t) --numSounding];
+                }
+                else
+                    ++i;
+            }
+        }
+
         for (int i = 0; i < numNotes; ++i)
         {
             int note = notes[(size_t) i] + 12 * p.octave + p.channelTranspose[(size_t) c];
             if (p.lockToScale)
                 note = ScaleLibrary::quantize (note, root, scale);
-            noteOn (out, outChannel, note, velocity, offset, lengthSamples);
+            noteOn (out, outChannel, note, velocity, offset, lengthSamples, c, st.slide || voice == VoiceMode::Legato);
         }
     }
 }
@@ -345,6 +401,7 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
         {
             allNotesOff (out, 0);
             allSoundOff (out, p, 0);
+            lastGlideSent.fill (-2);
             running = false;
             lastTriggeredStep = -1;
             lastPpqEnd = -1.0;
@@ -373,6 +430,8 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     const double ppqPerSample = bpm / 60.0 / sampleRate;
     const double ppqStart = host ? pos.ppq : internalPpq;
     const double ppqEnd = ppqStart + numSamples * ppqPerSample;
+
+    sendGlideControllers (out, pattern, p);
 
     const double stepLen = stepLengthInQuarters (p.division);
     const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;

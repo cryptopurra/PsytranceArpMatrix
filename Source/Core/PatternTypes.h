@@ -52,6 +52,16 @@ enum class VariationStyle : int
     numStyles
 };
 
+/** How a channel voices its notes on the synth (classic mono / legato / glide playing). */
+enum class VoiceMode : int
+{
+    Poly = 0,  // chords allowed, notes may overlap (slide steps overlap the next note)
+    Mono,      // one note at a time: chords -> single note, each note cuts the previous one,
+               // only slide steps overlap (303 style: glide on slides with a legato synth)
+    Legato,    // one note at a time, every note tied to the next (continuous legato / glide)
+    numModes
+};
+
 enum class HoldMode : int
 {
     Off = 0,    // notes play only while keys are held

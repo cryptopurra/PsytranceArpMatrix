@@ -24,7 +24,9 @@ public:
         int    octave      = 0;
         bool   lockToScale = true;
         juce::String baseName = "PsyArp";
-        std::array<int, kNumChannels> channelTranspose {};  // per-channel pitch (semitones)
+        std::array<int, kNumChannels> channelTranspose {};  // per-channel transposition (semitones)
+        std::array<VoiceMode, kNumChannels> voiceMode { VoiceMode::Poly, VoiceMode::Poly, VoiceMode::Poly, VoiceMode::Poly };
+        std::array<int, kNumChannels> glide { -1, -1, -1, -1 }; // CC5 portamento time, -1 = none
     };
 
     /** Notes of one channel, timestamps in ticks (ppq = opts.ppq). */

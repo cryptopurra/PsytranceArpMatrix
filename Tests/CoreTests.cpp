@@ -601,6 +601,53 @@ public:
             }
         }
 
+        beginTest ("voice modes: mono cuts, legato ties, chords collapse, glide CC once");
+        {
+            ChannelMatrix vm;
+            vm.setSeed (31);
+            vm.setChannelStyle (0, GeneratorStyle::RhythmStab, false); // has chords
+            vm.initialiseDefault();
+            ChannelMatrix va;               // melodic acid line for the legato overlap check
+            va.setSeed (32);
+            va.setChannelStyle (0, GeneratorStyle::FMLead, false);
+            va.initialiseDefault();
+            for (int mode = 0; mode < 3; ++mode)
+            {
+                const auto& pat = mode == 2 ? va.getPattern() : vm.getPattern();
+                ArpEngine ve;
+                ve.prepare (48000.0);
+                ArpParams vp;
+                vp.voiceMode[0] = (VoiceMode) mode;
+                vp.glide[0] = mode == 2 ? 40 : -1;
+                int maxOverlap = 0, sounding = 0, cc5 = 0, onsAtSameTime = 0, lastOnPos = -1, lastOnBlock = -1;
+                double q = 0.0;
+                for (int b = 0; b < 300; ++b)
+                {
+                    juce::MidiBuffer mb;
+                    ve.process (mb, 256, { true, q, bpm, true, false }, pat, vp);
+                    for (const auto meta : mb)
+                    {
+                        const auto m = meta.getMessage();
+                        if (m.isController() && m.getControllerNumber() == 5) ++cc5;
+                        if (m.isNoteOn())
+                        {
+                            if (lastOnBlock == b && lastOnPos == meta.samplePosition) ++onsAtSameTime;
+                            lastOnBlock = b; lastOnPos = meta.samplePosition;
+                            maxOverlap = juce::jmax (maxOverlap, ++sounding);
+                        }
+                        else if (m.isNoteOff())
+                            sounding = juce::jmax (0, sounding - 1);
+                    }
+                    q += 256 * bpm / 60.0 / 48000.0;
+                }
+                if (mode == 0) expect (onsAtSameTime > 0);            // poly: chord notes together
+                else           expectEquals (onsAtSameTime, 0);       // mono / legato: single notes
+                if (mode == 1) expect (maxOverlap <= 2);              // only slides may overlap
+                if (mode == 2) { expect (maxOverlap >= 2); expectEquals (cc5, 1); }
+                else           expectEquals (cc5, 0);
+            }
+        }
+
         beginTest ("internal clock with held keys + arp Up");
         params.mode = ArpMode::Up;
         params.playWithoutKeys = false;

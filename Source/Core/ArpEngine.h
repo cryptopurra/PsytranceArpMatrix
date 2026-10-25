@@ -22,7 +22,9 @@ struct ArpParams
     bool  playWithoutKeys = true; // pattern runs with transport even without held keys
     bool  mergeToChannel1 = false;// all channels out on MIDI ch 1 (single-instrument hosts)
     float internalBpm    = 142.0f;
-    std::array<int, kNumChannels> channelTranspose {}; // per-channel pitch (semitones)
+    std::array<int, kNumChannels> channelTranspose {}; // per-channel transposition (semitones, octave x 12)
+    std::array<VoiceMode, kNumChannels> voiceMode { VoiceMode::Poly, VoiceMode::Poly, VoiceMode::Poly, VoiceMode::Poly };
+    std::array<int, kNumChannels> glide { -1, -1, -1, -1 }; // portamento time sent as CC5 (0..127), -1 = don't send
 };
 
 /** Real-time engine: turns the pattern + held keys + host position into MIDI.
@@ -60,12 +62,14 @@ public:
 
 private:
     struct Held { int note; int velocity; int order; };
-    struct Sounding { int channel; int note; int samplesLeft; };
+    struct Sounding { int channel; int note; int samplesLeft; int source = -1; bool slide = false; };
 
     void handleInput (const juce::MidiBuffer& in, const ArpParams& p);
     void triggerStep (juce::int64 globalStep, int sampleOffset, double samplesPerStep,
                       const Pattern& pattern, const ArpParams& p, juce::MidiBuffer& out);
-    void noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int sampleOffset, int lengthSamples);
+    void noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int sampleOffset, int lengthSamples,
+                 int source = -1, bool slide = false);
+    void sendGlideControllers (juce::MidiBuffer& out, const Pattern& pattern, const ArpParams& p);
     void flushNoteOffs (juce::MidiBuffer& out, int numSamples);
     void allNotesOff (juce::MidiBuffer& out, int sampleOffset);
     void allSoundOff (juce::MidiBuffer& out, const ArpParams& p, int sampleOffset);
@@ -89,6 +93,7 @@ private:
     std::array<std::atomic<int>, kNumChannels> playingStep {};
     std::atomic<int> lastKeyNote { -1 };
     std::atomic<int> transposeNow { 0 }, heldCount { 0 };
+    std::array<int, kNumChannels> lastGlideSent { -2, -2, -2, -2 };
     juce::Random rng { 0x5eed };
 };
 } // namespace pam

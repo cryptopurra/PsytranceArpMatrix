@@ -78,8 +78,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
                                                        PatternSerializer::styleNames(), (int) defaultStyleForChannel (c)));
         l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelMidi (c), 1 },
                                                     "Ch" + String (c + 1) + " MIDI Out Channel", 1, 16, c + 1));
-        l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelPitch (c), 1 },
-                                                    "Ch" + String (c + 1) + " Pitch", -24, 24, 0));
+        l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelOct (c), 1 },
+                                                    "Ch" + String (c + 1) + " Octave", -3, 3, 0));
+        l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::channelVoice (c), 1 },
+                                                       "Ch" + String (c + 1) + " Voice", StringArray { "Poly", "Mono", "Legato" },
+                                                       c == 0 ? 1 : 0));
+        l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelGlide (c), 1 },
+                                                    "Ch" + String (c + 1) + " Glide (CC5)", 0, 127, 0));
     }
     return l;
 }
@@ -103,7 +108,11 @@ PluginProcessor::PluginProcessor()
     }
 
     for (int c = 0; c < kNumChannels; ++c)
-        pitchParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelPitch (c));
+    {
+        octParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelOct (c));
+        voiceParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelVoice (c));
+        glideParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelGlide (c));
+    }
 
     presets.ensureFolderStructure();
     presets.installFactoryPresets (getFactoryPresets(), false);
@@ -163,8 +172,13 @@ ArpParams PluginProcessor::readArpParams() const
     p.playWithoutKeys = value (apvts, ParamID::freeRun) > 0.5f;
     p.mergeToChannel1 = value (apvts, ParamID::mergeOut) > 0.5f;
     p.internalBpm     = (float) audioPattern.bpm;
-    for (int c = 0; c < kNumChannels; ++c)
-        p.channelTranspose[(size_t) c] = juce::roundToInt (pitchParams[(size_t) c]->load()); // cached: no allocation
+    for (int c = 0; c < kNumChannels; ++c) // cached parameter pointers: no allocation on the audio thread
+    {
+        p.channelTranspose[(size_t) c] = 12 * juce::roundToInt (octParams[(size_t) c]->load());
+        p.voiceMode[(size_t) c] = (VoiceMode) juce::roundToInt (voiceParams[(size_t) c]->load());
+        const int g = juce::roundToInt (glideParams[(size_t) c]->load());
+        p.glide[(size_t) c] = g > 0 ? g : -1;
+    }
     return p;
 }
 
@@ -509,7 +523,12 @@ MultiMidiExporter::Options PluginProcessor::exportOptions() const
     o.lockToScale = value (apvts, ParamID::lock) > 0.5f;
     o.baseName = PresetManager::sanitiseName (currentPresetName);
     for (int c = 0; c < kNumChannels; ++c)
-        o.channelTranspose[(size_t) c] = juce::roundToInt (value (apvts, ParamID::channelPitch (c)));
+    {
+        o.channelTranspose[(size_t) c] = 12 * juce::roundToInt (octParams[(size_t) c]->load());
+        o.voiceMode[(size_t) c] = (VoiceMode) juce::roundToInt (voiceParams[(size_t) c]->load());
+        const int g = juce::roundToInt (glideParams[(size_t) c]->load());
+        o.glide[(size_t) c] = g > 0 ? g : -1;
+    }
     return o;
 }
 

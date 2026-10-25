@@ -26,7 +26,8 @@ private:
     juce::Colour colour;
 
     juce::ToggleButton onButton;
-    juce::ComboBox styleBox, midiBox, pitchBox;
+    juce::ComboBox styleBox, midiBox, octBox, voiceBox;
+    juce::Slider glideSlider;
     juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" };
     juce::Label stats;
     StepGridComponent grid;
@@ -36,6 +37,7 @@ private:
     bool compact = false;     // collapsed row (too small for the grid)
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment, pitchAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment, octAttachment, voiceAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> glideAttachment;
 };
 } // namespace pam
