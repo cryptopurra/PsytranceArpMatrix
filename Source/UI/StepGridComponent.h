@@ -11,6 +11,7 @@ namespace pam
             drag up/down     move note by scale degrees
             shift + drag     velocity
             alt/option-click accent
+            mouse wheel      note up/down by scale degree (shift + wheel: velocity)
             right-click      menu (accent, slide, chord size, gate, octave, clear) */
 class StepGridComponent final : public juce::Component
 {
@@ -25,6 +26,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
 private:
     int stepAt (juce::Point<float> pos) const noexcept;

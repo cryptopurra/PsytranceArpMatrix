@@ -10,6 +10,7 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
     addAndMakeVisible (onButton);
 
     styleBox.addItemList (PatternSerializer::styleNames(), 1);
+    styleBox.setScrollWheelEnabled (true);
     addAndMakeVisible (styleBox);
 
     auto& state = proc.getState();

@@ -140,6 +140,31 @@ void StepGridComponent::mouseUp (const juce::MouseEvent&)
     dragStep = -1;
 }
 
+void StepGridComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    const int s = stepAt (e.position);
+    const auto& ch = proc.getMatrix().getPattern().channels[(size_t) channel];
+    if (s >= ch.length || ! ch.steps[(size_t) s].active || std::abs (w.deltaY) < 1.0e-4f)
+        return;
+
+    const int dir = w.deltaY > 0 ? 1 : -1;
+    const auto& st = ch.steps[(size_t) s];
+
+    if (e.mods.isShiftDown())
+    {
+        const int vel = juce::jlimit (1, 127, (int) st.velocity + dir * 5);
+        modifyStep (s, [vel] (Step& x) { x.velocity = (uint8_t) vel; });
+        return;
+    }
+
+    const auto& p = proc.getMatrix().getPattern();
+    const auto& scale = ScaleLibrary::get()[p.scaleIndex];
+    const int base = 12 * (st.note / 12);
+    const int note = juce::jlimit (12, 120, ScaleLibrary::degreeToNote (
+                         ScaleLibrary::noteToDegree (st.note, p.rootNote, scale, base) + dir, p.rootNote, scale, base));
+    modifyStep (s, [note] (Step& x) { x.note = (int8_t) note; });
+}
+
 void StepGridComponent::showMenu (int s)
 {
     const auto st = proc.getMatrix().getPattern().channels[(size_t) channel].steps[(size_t) s];

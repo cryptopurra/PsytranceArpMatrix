@@ -33,8 +33,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     lf.setColour (juce::PopupMenu::highlightedBackgroundColourId, kAccent.withAlpha (0.35f));
 
     //--- header ------------------------------------------------------------------
-    title.setText ("PSYTRANCE ARP MATRIX", juce::dontSendNotification);
-    title.setFont (juce::FontOptions (20.0f, juce::Font::bold));
+    title.setText ("PSYTRANCE ARP MATRIX  v" JucePlugin_VersionString, juce::dontSendNotification);
+    title.setFont (juce::FontOptions (18.0f, juce::Font::bold));
     title.setColour (juce::Label::textColourId, kAccent);
     addAndMakeVisible (title);
 
@@ -172,7 +172,8 @@ PluginEditor::~PluginEditor()
 void PluginEditor::addCombo (juce::ComboBox& box, const juce::StringArray& items, const char* id, const juce::String& tip)
 {
     box.addItemList (items, 1);
-    box.setTooltip (tip);
+    box.setTooltip (tip + "  (mouse wheel: change value)");
+    box.setScrollWheelEnabled (true);
     addAndMakeVisible (box);
     comboAttachments.push_back (std::make_unique<ComboAttachment> (proc.getState(), id, box));
 }
@@ -226,7 +227,7 @@ void PluginEditor::resized()
 
     // header
     auto header = r.removeFromTop (52).reduced (10, 10);
-    title.setBounds (header.removeFromLeft (240));
+    title.setBounds (header.removeFromLeft (300));
     for (auto* b : { &panicButton, &resetButton, &generateButton, &importButton, &saveAsButton, &saveButton, &presetsButton })
     {
         b->setBounds (header.removeFromRight (b == &importButton ? 112 : 92).reduced (2, 0));

@@ -400,6 +400,48 @@ public:
             expectEquals (off, on);
         }
 
+        beginTest ("long run with cycle loop + jitter: every note matches the pattern step");
+        {
+            ChannelMatrix lm;
+            lm.setSeed (77);
+            lm.setLength (16);
+            lm.initialiseDefault();
+            const auto& lp = lm.getPattern();
+            ArpEngine e2;
+            const double sr = 48000.0, tempo = 145.0;
+            e2.prepare (sr);
+            ArpParams ap;
+            ap.octave = -1;
+            const double loopStart = 252.0, loopEnd = 252.0 + 32.0; // 8 bars cycle, like the video
+            double q = loopStart;
+            int mismatches = 0, notes = 0;
+            juce::Random r (7);
+            const auto& scale = ScaleLibrary::get()[lp.scaleIndex];
+            for (int blockNo = 0; blockNo < 20000; ++blockNo) // ~107 s at 256 samples
+            {
+                const int blk = 256;
+                juce::MidiBuffer b;
+                const double reported = q + (r.nextFloat() - 0.5) * 0.004;
+                e2.process (b, blk, { true, reported, tempo, true, false }, lp, ap);
+                for (const auto meta : b)
+                {
+                    const auto m = meta.getMessage();
+                    if (! m.isNoteOn() || m.getChannel() != 1) continue;
+                    ++notes;
+                    const double at = reported + meta.samplePosition * tempo / 60.0 / sr;
+                    const int step = (int) (juce::roundToInt (at / 0.25) % 16);
+                    const auto& st = lp.channels[0].steps[(size_t) step];
+                    const int expected = ScaleLibrary::quantize (st.note - 12, lp.rootNote, scale);
+                    if (! st.active || m.getNoteNumber() != expected) ++mismatches;
+                }
+                q += blk * tempo / 60.0 / sr;
+                if (q >= loopEnd) q = loopStart + (q - loopEnd);
+            }
+            const int stepsPlayed = (int) (20000.0 * 256.0 * 145.0 / 60.0 / 48000.0 / 0.25);
+            expect (notes > stepsPlayed * lp.channels[0].countActive() / 16 - 20, "notes " + juce::String (notes) + " steps " + juce::String (stepsPlayed));
+            expectEquals (mismatches, 0);
+        }
+
         beginTest ("internal clock with held keys + arp Up");
         params.mode = ArpMode::Up;
         params.playWithoutKeys = false;
