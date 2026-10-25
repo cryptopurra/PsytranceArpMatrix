@@ -102,6 +102,8 @@ public:
     //=== Monitoring ===============================================================
     int currentStep (int channel) const noexcept    { return engine.currentStep (channel); }
     KeyDetection detectedKey() const                { return keyTracker.getDetection(); }
+    int keyFollowTranspose() const noexcept         { return engine.currentTranspose(); }
+    int heldKeys() const noexcept                   { return engine.heldKeyCount(); }
     KeyDetection lastImportKey() const noexcept     { return importKey; }
     void panic() noexcept                           { panicRequested.store (true); }
 

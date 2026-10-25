@@ -18,7 +18,7 @@ struct ArpParams
     int   octaveRange    = 1;     // 1..4 (arp modes)
     int   holdVelocity   = 100;   // velocity knob
     bool  lockToScale    = true;
-    bool  keyFollow      = true;  // held key transposes the sequencer channels
+    bool  keyFollow      = false; // held key transposes the sequencer channels (root key = no transposition)
     bool  playWithoutKeys = true; // pattern runs with transport even without held keys
     bool  mergeToChannel1 = false;// all channels out on MIDI ch 1 (single-instrument hosts)
     float internalBpm    = 142.0f;
@@ -51,6 +51,9 @@ public:
     int currentStep (int channel) const noexcept { return playingStep[(size_t) channel].load(); }
     bool isRunning() const noexcept               { return running; }
     int lastKey() const noexcept                  { return lastKeyNote.load(); }
+    /** Semitones the sequence is currently transposed by Key Follow (0 = none). */
+    int currentTranspose() const noexcept         { return transposeNow.load(); }
+    int heldKeyCount() const noexcept             { return heldCount.load(); }
 
 private:
     struct Held { int note; int velocity; int order; };
@@ -81,6 +84,7 @@ private:
     std::array<int, kNumChannels> arpCounter {};
     std::array<std::atomic<int>, kNumChannels> playingStep {};
     std::atomic<int> lastKeyNote { -1 };
+    std::atomic<int> transposeNow { 0 }, heldCount { 0 };
     juce::Random rng { 0x5eed };
 };
 } // namespace pam

@@ -442,6 +442,34 @@ public:
             expectEquals (mismatches, 0);
         }
 
+        beginTest ("a held non-root key does not change the pattern unless Key Follow is on");
+        {
+            ArpEngine kf;
+            kf.prepare (48000.0);
+            ArpParams kp; // defaults: Step mode, Key Follow off
+            juce::MidiBuffer first;
+            first.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0); // C held, root is F#
+            double q = 0.0;
+            int mismatch = 0;
+            const auto& scale = ScaleLibrary::get()[p.scaleIndex];
+            for (int i = 0; i < 400; ++i)
+            {
+                juce::MidiBuffer b;
+                if (i == 0) b = first;
+                kf.process (b, 256, { true, q, bpm, true, false }, p, kp);
+                for (const auto meta : b)
+                    if (meta.getMessage().isNoteOn() && meta.getMessage().getChannel() == 1)
+                    {
+                        const double at = q + meta.samplePosition * bpm / 60.0 / 48000.0;
+                        const auto& st = p.channels[0].steps[(size_t) (juce::roundToInt (at / 0.25) % 16)];
+                        mismatch += meta.getMessage().getNoteNumber() == ScaleLibrary::quantize (st.note, p.rootNote, scale) ? 0 : 1;
+                    }
+                q += 256 * bpm / 60.0 / 48000.0;
+            }
+            expectEquals (mismatch, 0);
+            expectEquals (kf.currentTranspose(), 0);
+        }
+
         beginTest ("internal clock with held keys + arp Up");
         params.mode = ArpMode::Up;
         params.playWithoutKeys = false;

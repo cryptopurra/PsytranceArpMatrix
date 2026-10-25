@@ -63,7 +63,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::velMode, 1 }, "Velocity Mode", PatternSerializer::velocityModeNames(), (int) VelocityMode::Step));
     l.add (std::make_unique<AudioParameterInt>    (ParameterID { ParamID::velocity, 1 }, "Velocity", 1, 127, 100));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::holdMode, 1 }, "Hold", PatternSerializer::holdModeNames(), (int) HoldMode::Off));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::keyFollow, 1 }, "Key Follow", true));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::keyFollow, 1 }, "Key Follow", false));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::freeRun, 1 }, "Play Without Keys", true));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::mergeOut, 1 }, "Merge To MIDI Ch 1", false));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::varStyle, 1 }, "Variation Style", PatternSerializer::variationStyleNames(), 0));

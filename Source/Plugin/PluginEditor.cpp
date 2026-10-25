@@ -119,7 +119,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addKnob (velocityKnob, ParamID::velocity, "VELOCITY");
     addKnob (varAmountKnob, ParamID::varAmount, "VARIATION");
 
-    addToggle (keyFollowToggle, ParamID::keyFollow, "KEY FOLLOW", "Held key transposes the sequence");
+    addToggle (keyFollowToggle, ParamID::keyFollow, "KEY FOLLOW", "Held MIDI key transposes the sequence (playing the root note = no change). Leave OFF if you only write a long note to start the pattern: with FREE RUN on no note is needed at all.");
     addToggle (freeRunToggle, ParamID::freeRun, "FREE RUN", "Play with the transport even when no key is held");
     addToggle (mergeToggle, ParamID::mergeOut, "MERGE CH1", "Send all channels on MIDI channel 1 (hosts with a single MIDI destination)");
 
@@ -328,6 +328,13 @@ void PluginEditor::timerCallback()
     auto k = proc.detectedKey();
     auto imp = proc.lastImportKey();
     juce::String text = "Input: " + k.describe();
+    if (proc.heldKeys() > 0)
+    {
+        const int t = proc.keyFollowTranspose();
+        text << "   |   Keys held: " << proc.heldKeys();
+        if (t != 0)
+            text << " (Key Follow " << (t > 0 ? "+" : "") << t << " st)";
+    }
     if (imp.valid)
         text << "   |   Last import: " << imp.describe();
     detected.setText (text, juce::dontSendNotification);

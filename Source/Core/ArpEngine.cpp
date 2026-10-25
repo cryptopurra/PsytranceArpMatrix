@@ -73,6 +73,9 @@ void ArpEngine::handleInput (const juce::MidiBuffer& in, const ArpParams& p)
 
     if (p.holdMode == HoldMode::Off && physicallyDown == 0)
         numHeld = 0;
+    heldCount.store (numHeld);
+    if (numHeld == 0 || ! p.keyFollow)
+        transposeNow.store (0);
 }
 
 //==============================================================================
@@ -279,6 +282,8 @@ void ArpEngine::triggerStep (juce::int64 k, int offset, double samplesPerStep,
             }
         }
 
+        if (c == 0 || transpose != 0)
+            transposeNow.store (transpose);
         const int root = (pattern.rootNote + transpose + 12) % 12;
 
         int velocity = st.velocity;
