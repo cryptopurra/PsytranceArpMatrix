@@ -127,7 +127,7 @@ int ArpEngine::arpNote (int c, const Step& st, const Pattern& pattern, const Arp
 {
     std::array<Held, 32> sorted {};
     std::copy (held.begin(), held.begin() + numHeld, sorted.begin());
-    auto* end = sorted.begin() + numHeld;
+    const auto end = sorted.begin() + numHeld;
 
     if (p.mode == ArpMode::AsPlayed)
         std::sort (sorted.begin(), end, [] (const Held& a, const Held& b) { return a.order < b.order; });
