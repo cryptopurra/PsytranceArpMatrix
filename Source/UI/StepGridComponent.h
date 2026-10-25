@@ -8,7 +8,8 @@ namespace pam
 /** 16-step view of one matrix channel (one page of up to 4).
 
     Mouse:  click            toggle step on/off
-            drag up/down     move note by scale degrees
+            drag up/down     move note by scale degrees (moving left/right paints the same note
+                             on the neighbouring active steps)
             shift + drag     velocity
             alt/option-click accent
             mouse wheel      note up/down by scale degree (shift + wheel: velocity)

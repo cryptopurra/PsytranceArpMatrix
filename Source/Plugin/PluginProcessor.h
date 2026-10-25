@@ -82,6 +82,14 @@ public:
     /** Applies an edit to the matrix and publishes the result to the audio thread. */
     void editMatrix (const std::function<void (ChannelMatrix&)>& fn);
 
+    //=== Undo / redo (every matrix change, one step per mouse gesture) ==============
+    void undo();
+    void redo();
+    bool canUndo() const noexcept                   { return ! undoStack.empty(); }
+    bool canRedo() const noexcept                   { return ! redoStack.empty(); }
+    void beginGesture() noexcept                    { gestureOpen = true; gestureCaptured = false; }
+    void endGesture() noexcept                      { gestureOpen = false; }
+
     void generate();                                // Generate / Roll dice
     void resetToSingleArp();                        // Reset: Single Arp Mode
     void newVariation();                            // Melody Var
@@ -115,7 +123,8 @@ public:
     {
         std::array<int, kNumChannels> view { 0, 0, 0, 0 };  // 0 = step grid, 1 = piano roll
         std::array<int, kNumChannels> lane { 1, 1, 1, 1 };  // piano roll lane: 0 hidden, 1 velocity, 2 gate
-        int sizeIndex = 1;
+        std::array<float, kNumChannels> laneSize { 0.28f, 0.28f, 0.28f, 0.28f }; // lane height (fraction)
+        int sizeIndex = 2;                                  // index into the SIZE menu (M)
     } ui;
 
 private:
@@ -142,6 +151,11 @@ private:
 
     std::atomic<bool> paramsDirty { false }, keyDirty { false }, channelsDirty { false }, lengthDirty { false };
     std::atomic<bool> panicRequested { false };
+    std::vector<ChannelMatrix> undoStack, redoStack;
+    bool gestureOpen = false, gestureCaptured = false;
+    juce::uint32 lastUndoPush = 0;
+    void pushUndo (bool coalesce);
+    void restoreSnapshot (const ChannelMatrix& m);
     bool wasBypassed = false;
     bool suppressListener = false;
     juce::String currentPresetName = "Init";

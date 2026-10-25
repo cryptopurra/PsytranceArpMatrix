@@ -85,8 +85,10 @@ void ChannelStripComponent::updateViewButtons()
     laneButton.setButtonText (l == 0 ? "LANE OFF" : (l == 1 ? "LANE VEL" : "LANE GATE"));
     laneButton.setEnabled (pr);
     roll.setLane ((PianoRollComponent::Lane) l);
-    grid.setVisible (! pr);
-    roll.setVisible (pr);
+    grid.setVisible (! pr && ! compact);
+    roll.setVisible (pr && ! compact);
+    for (auto* b : { &regenButton, &varButton, &velButton, &gateButton, &laneButton })
+        b->setVisible (! compact);
 }
 
 void ChannelStripComponent::refresh()
@@ -113,7 +115,26 @@ void ChannelStripComponent::paint (juce::Graphics& g)
 
 void ChannelStripComponent::resized()
 {
+    const bool wasCompact = compact;
+    compact = getHeight() < 96;
+    if (compact != wasCompact)
+        updateViewButtons();
+
     auto r = getLocalBounds().reduced (8, 4);
+
+    if (compact)
+    {
+        // collapsed row: only the essentials on one line, no grid
+        auto row = r.withSizeKeepingCentre (r.getWidth(), juce::jmin (24, r.getHeight()));
+        onButton.setBounds (row.removeFromLeft (70));
+        styleBox.setBounds (row.removeFromLeft (150).reduced (2, 0));
+        midiBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
+        viewButton.setBounds (row.removeFromLeft (100).reduced (2, 0));
+        row.removeFromLeft (8);
+        stats.setBounds (row);
+        return;
+    }
+
     auto left = r.removeFromLeft (190);
 
     auto row1 = left.removeFromTop (24);

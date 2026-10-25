@@ -103,6 +103,7 @@ void StepGridComponent::mouseDown (const juce::MouseEvent& e)
     }
 
     const auto& st = proc.getMatrix().getPattern().channels[(size_t) channel].steps[(size_t) s];
+    proc.beginGesture();
     dragStep = s;
     dragStartNote = st.note;
     dragStartVel = st.velocity;
@@ -111,26 +112,56 @@ void StepGridComponent::mouseDown (const juce::MouseEvent& e)
 
 void StepGridComponent::mouseDrag (const juce::MouseEvent& e)
 {
-    if (dragStep < 0 || e.getDistanceFromDragStartY() == 0)
+    if (dragStep < 0)
+        return;
+
+    const int hover = juce::jlimit (0, proc.getMatrix().getPattern().channels[(size_t) channel].length - 1,
+                                    stepAt (e.position));
+    if (! dragged && std::abs (e.getDistanceFromDragStartY()) < 2 && hover == dragStep)
         return;
 
     dragged = true;
     const int dy = -e.getDistanceFromDragStartY();
+    const int from = juce::jmin (dragStep, hover), to = juce::jmax (dragStep, hover);
+    const int c = channel, origin = dragStep;
 
     if (e.mods.isShiftDown())
     {
+        // velocity: the same value is painted on every step the mouse passes over
         const int vel = juce::jlimit (1, 127, dragStartVel + dy);
-        modifyStep (dragStep, [=] (Step& st) { st.velocity = (uint8_t) vel; st.active = true; });
+        proc.editMatrix ([=] (ChannelMatrix& m)
+        {
+            for (int s = from; s <= to; ++s)
+            {
+                auto st = m.getPattern().channels[(size_t) c].steps[(size_t) s];
+                if (! st.active && s != origin) continue;
+                st.velocity = (uint8_t) vel;
+                st.active = true;
+                m.setStep (c, s, st);
+            }
+        });
     }
     else
     {
+        // note: drag up/down sets the pitch, moving left/right applies it to the neighbouring steps
         const auto& p = proc.getMatrix().getPattern();
         const auto& scale = ScaleLibrary::get()[p.scaleIndex];
         const int base = 12 * (dragStartNote / 12);
         const int deg = ScaleLibrary::noteToDegree (dragStartNote, p.rootNote, scale, base) + dy / 8;
         const int note = juce::jlimit (12, 120, ScaleLibrary::degreeToNote (deg, p.rootNote, scale, base));
-        modifyStep (dragStep, [=] (Step& st) { st.note = (int8_t) note; st.active = true; });
+        proc.editMatrix ([=] (ChannelMatrix& m)
+        {
+            for (int s = from; s <= to; ++s)
+            {
+                auto st = m.getPattern().channels[(size_t) c].steps[(size_t) s];
+                if (! st.active && s != origin) continue;
+                st.note = (int8_t) note;
+                st.active = true;
+                m.setStep (c, s, st);
+            }
+        });
     }
+    repaint();
 }
 
 void StepGridComponent::mouseUp (const juce::MouseEvent&)
@@ -138,6 +169,7 @@ void StepGridComponent::mouseUp (const juce::MouseEvent&)
     if (dragStep >= 0 && ! dragged)
         modifyStep (dragStep, [] (Step& st) { st.active = ! st.active; });
     dragStep = -1;
+    proc.endGesture();
 }
 
 void StepGridComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)

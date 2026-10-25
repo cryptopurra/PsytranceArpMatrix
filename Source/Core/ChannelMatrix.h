@@ -42,8 +42,8 @@ public:
     /** Regenerates one channel against the others (they stay untouched). */
     void regenerateChannel (int channel);
 
-    /** Dynamic activation switch. Enabling generates a complementary part unless the
-        channel holds user edits (then it is restored as it was). */
+    /** Dynamic activation switch. Enabling always generates a new part, complementary
+        to the channels that are already on. */
     void setChannelEnabled (int channel, bool enabled);
     bool isChannelEnabled (int channel) const noexcept;
     juce::Array<int> getActiveChannels() const;

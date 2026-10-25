@@ -259,6 +259,9 @@ void PluginProcessor::parameterChanged (const juce::String& id, float)
 
 void PluginProcessor::handleAsyncUpdate()
 {
+    if (keyDirty.load() || lengthDirty.load() || channelsDirty.load())
+        pushUndo (true);
+
     if (keyDirty.exchange (false))
     {
         matrix.setKey (choiceIndex (apvts, ParamID::root), choiceIndex (apvts, ParamID::scale), true);
@@ -334,8 +337,56 @@ void PluginProcessor::syncChannelParamsFromMatrix()
     setParam (apvts, ParamID::length, (float) p.channels[0].length);
 }
 
+//==============================================================================
+void PluginProcessor::pushUndo (bool coalesce)
+{
+    const auto now = juce::Time::getMillisecondCounter();
+    if (gestureOpen && gestureCaptured)
+        return;
+    if (coalesce && ! undoStack.empty() && now - lastUndoPush < 600)
+        return; // a slider being dragged: one undo step for the whole movement
+
+    undoStack.push_back (matrix);
+    if (undoStack.size() > 100)
+        undoStack.erase (undoStack.begin());
+    redoStack.clear();
+    lastUndoPush = now;
+    if (gestureOpen)
+        gestureCaptured = true;
+}
+
+void PluginProcessor::restoreSnapshot (const ChannelMatrix& m)
+{
+    matrix = m;
+    publishPattern();
+    syncChannelParamsFromMatrix();
+    if (onMatrixChanged)
+        onMatrixChanged();
+}
+
+void PluginProcessor::undo()
+{
+    if (undoStack.empty())
+        return;
+    redoStack.push_back (matrix);
+    auto m = undoStack.back();
+    undoStack.pop_back();
+    restoreSnapshot (m);
+}
+
+void PluginProcessor::redo()
+{
+    if (redoStack.empty())
+        return;
+    undoStack.push_back (matrix);
+    auto m = redoStack.back();
+    redoStack.pop_back();
+    restoreSnapshot (m);
+}
+
 void PluginProcessor::editMatrix (const std::function<void (ChannelMatrix&)>& fn)
 {
+    pushUndo (false);
     fn (matrix);
     publishPattern();
     syncChannelParamsFromMatrix();
@@ -501,7 +552,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& dest)
     }
     state.setProperty ("uiViews", views, nullptr);
     state.setProperty ("uiLanes", lanes, nullptr);
-    state.setProperty ("uiSize", ui.sizeIndex, nullptr);
+    state.setProperty ("uiSizeV2", ui.sizeIndex, nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
@@ -529,7 +580,7 @@ void PluginProcessor::setStateInformation (const void* data, int size)
             ui.view[(size_t) c] = juce::jlimit (0, 1, views.substring (c, c + 1).getIntValue());
             ui.lane[(size_t) c] = juce::jlimit (0, 2, lanes.substring (c, c + 1).getIntValue());
         }
-        ui.sizeIndex = juce::jlimit (0, 4, (int) tree.getProperty ("uiSize", 1));
+        ui.sizeIndex = juce::jlimit (0, 5, (int) tree.getProperty ("uiSizeV2", 2));
     }
 
     Pattern p;

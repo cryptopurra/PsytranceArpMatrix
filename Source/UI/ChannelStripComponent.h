@@ -31,6 +31,7 @@ private:
     PianoRollComponent roll;
     juce::TextButton viewButton, laneButton;
     void updateViewButtons();
+    bool compact = false;     // collapsed row (too small for the grid)
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment;

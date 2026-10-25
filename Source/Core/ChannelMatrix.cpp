@@ -124,8 +124,8 @@ void ChannelMatrix::setChannelEnabled (int c, bool enabled)
         return;
 
     ch.enabled = enabled;
-    if (enabled && ! ch.userEdited)
-        regenerateChannel (c);   // complementary to whatever is already on
+    if (enabled)
+        regenerateChannel (c);   // always a fresh part, complementary to whatever is already on
     touch();
 }
 

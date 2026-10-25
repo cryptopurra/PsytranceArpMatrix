@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <bitset>
 #include "Plugin/PluginProcessor.h"
 
 namespace pam
@@ -11,10 +12,13 @@ namespace pam
     moving a note in time moves it to another step and its length is the step gate.
 
     Mouse:  click empty cell          add a note (drag right to set its length)
-            drag note body            move in time (steps) and pitch
-            drag right edge           change length (gate)
+            drag note body            move in time (steps) and pitch (all selected notes)
+            drag right edge           change length (gate) of all selected notes
+            Ctrl + click note         add / remove the note from the selection
+            Ctrl + drag on empty area rectangle selection
             double-click / alt-click  delete note
-            right-click note          menu (accent, slide, chord, delete)
+            right-click note          menu (accent, slide, chord, octave, select all, delete)
+            drag the lane border      resize the lane (double-click: default size)
             wheel                     scroll pitch      (horizontal wheel: scroll time)
             Ctrl + wheel              horizontal zoom
             Shift + wheel             vertical zoom
@@ -54,7 +58,11 @@ private:
     int noteAt (juce::Point<float> p, bool& onRightEdge) const;
     void clampView();
     void editStep (int step, const std::function<void (Step&)>& fn);
-    void moveNote (int fromStep, int toStep, int newNote);
+    void applySteps (const std::array<Step, kMaxSteps>& target);
+    void moveSelection (int dStep, int dNote);
+    void resizeSelection (float dGate);
+    void deleteSelection();
+    bool isOnLaneBorder (juce::Point<int> p) const;
     void setLaneValue (juce::Point<float> p);
     void showNoteMenu (int step);
     const ChannelPattern& channelData() const;
@@ -71,11 +79,14 @@ private:
     float topNote = 84.0f;     // pitch at the top edge
 
     // drag state
-    enum class Drag { None, Move, Resize, Create, Lane };
+    enum class Drag { None, Move, Resize, Create, Lane, LaneSplit, Select };
     Drag drag = Drag::None;
     int dragStep = -1, dragStartNote = 60, currentStep = -1;
     float dragStartGate = 0.5f;
-    int lastDragNote = 60;
+    int lastDragNote = 60, lastDStep = 0, lastDNote = 0;
     std::array<Step, kMaxSteps> dragOrigin {};
+    std::bitset<kMaxSteps> selected, dragSelection;
+    juce::Point<float> selectStart;
+    juce::Rectangle<float> selectRect;
 };
 } // namespace pam

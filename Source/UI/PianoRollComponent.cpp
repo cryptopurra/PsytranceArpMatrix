@@ -31,7 +31,8 @@ juce::Rectangle<int> PianoRollComponent::laneArea() const
     if (lane == Lane::None)
         return {};
     auto r = getLocalBounds().withTrimmedLeft (keyboardWidth);
-    return r.removeFromBottom (juce::jmax (26, getHeight() * 28 / 100));
+    const float frac = juce::jlimit (0.1f, 0.75f, proc.ui.laneSize[(size_t) channel]);
+    return r.removeFromBottom (juce::jmax (20, juce::roundToInt ((float) getHeight() * frac)));
 }
 
 juce::Rectangle<int> PianoRollComponent::noteArea() const
@@ -234,8 +235,9 @@ void PianoRollComponent::paint (juce::Graphics& g)
 
         g.setColour (c);
         g.fillRoundedRectangle (r, 2.0f);
-        g.setColour (st.accent ? juce::Colours::white : c.brighter (0.6f));
-        g.drawRoundedRectangle (r, 2.0f, st.accent ? 1.6f : 0.8f);
+        const bool sel = selected[(size_t) s];
+        g.setColour (sel ? juce::Colours::yellow : (st.accent ? juce::Colours::white : c.brighter (0.6f)));
+        g.drawRoundedRectangle (r, 2.0f, sel ? 2.0f : (st.accent ? 1.6f : 0.8f));
 
         if (st.slide)
         {
@@ -253,12 +255,22 @@ void PianoRollComponent::paint (juce::Graphics& g)
     }
     g.restoreState();
 
+    if (drag == Drag::Select)
+    {
+        g.setColour (juce::Colours::yellow.withAlpha (0.15f));
+        g.fillRect (selectRect);
+        g.setColour (juce::Colours::yellow.withAlpha (0.7f));
+        g.drawRect (selectRect, 1.0f);
+    }
+
     // lane
     if (lane != Lane::None)
     {
         auto la = laneArea();
         g.setColour (juce::Colour (0xff0e1824));
         g.fillRect (la);
+        g.setColour (colour.withAlpha (0.5f)); // draggable border between notes and lane
+        g.fillRect (la.getX(), la.getY() - 2, la.getWidth(), 2);
         g.setColour (juce::Colours::white.withAlpha (0.5f));
         g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
         g.drawText (lane == Lane::Velocity ? "VEL" : "GATE",
@@ -297,29 +309,8 @@ void PianoRollComponent::editStep (int step, const std::function<void (Step&)>& 
     repaint();
 }
 
-void PianoRollComponent::moveNote (int fromStep, int toStep, int newNote)
+void PianoRollComponent::applySteps (const std::array<Step, kMaxSteps>& target)
 {
-    // rebuild from the snapshot taken at mouse-down, so dragging across other notes never
-    // shuffles them: the note lands on toStep and a note already there swaps to fromStep
-    auto target = dragOrigin;
-    auto moving = dragOrigin[(size_t) fromStep];
-    moving.note = (int8_t) newNote;
-    moving.active = true;
-
-    if (toStep != fromStep)
-    {
-        const auto occupant = dragOrigin[(size_t) toStep];
-        target[(size_t) toStep] = moving;
-        if (occupant.active)
-            target[(size_t) fromStep] = occupant;
-        else
-            target[(size_t) fromStep].active = false;
-    }
-    else
-    {
-        target[(size_t) fromStep] = moving;
-    }
-
     const int c = channel;
     proc.editMatrix ([c, target] (ChannelMatrix& m)
     {
@@ -328,8 +319,58 @@ void PianoRollComponent::moveNote (int fromStep, int toStep, int newNote)
             if (! (cur[(size_t) s] == target[(size_t) s]))
                 m.setStep (c, s, target[(size_t) s]);
     });
-    currentStep = toStep;
     repaint();
+}
+
+void PianoRollComponent::moveSelection (int dStep, int dNote)
+{
+    // rebuilt from the snapshot taken at mouse-down: the selected notes land dStep steps later
+    // and dNote semitones higher, overwriting whatever is there
+    const int len = channelData().length;
+    int minS = kMaxSteps, maxS = -1;
+    for (int s = 0; s < len; ++s)
+        if (dragSelection[(size_t) s]) { minS = juce::jmin (minS, s); maxS = juce::jmax (maxS, s); }
+    if (maxS < 0)
+        return;
+    dStep = juce::jlimit (-minS, len - 1 - maxS, dStep);
+
+    auto target = dragOrigin;
+    for (int s = 0; s < len; ++s)
+        if (dragSelection[(size_t) s])
+            target[(size_t) s].active = false;
+
+    std::bitset<kMaxSteps> newSel;
+    for (int s = 0; s < len; ++s)
+        if (dragSelection[(size_t) s])
+        {
+            auto st = dragOrigin[(size_t) s];
+            st.note = (int8_t) juce::jlimit (0, 127, st.note + dNote);
+            st.active = true;
+            target[(size_t) (s + dStep)] = st;
+            newSel.set ((size_t) (s + dStep));
+        }
+
+    selected = newSel;
+    applySteps (target);
+}
+
+void PianoRollComponent::resizeSelection (float dGate)
+{
+    auto target = dragOrigin;
+    for (int s = 0; s < kMaxSteps; ++s)
+        if (dragSelection[(size_t) s])
+            target[(size_t) s].gate = juce::jlimit (0.1f, 4.0f, dragOrigin[(size_t) s].gate + dGate);
+    applySteps (target);
+}
+
+void PianoRollComponent::deleteSelection()
+{
+    auto target = channelData().steps;
+    for (int s = 0; s < kMaxSteps; ++s)
+        if (selected[(size_t) s])
+            target[(size_t) s].active = false;
+    selected.reset();
+    applySteps (target);
 }
 
 void PianoRollComponent::setLaneValue (juce::Point<float> p)
@@ -346,9 +387,22 @@ void PianoRollComponent::setLaneValue (juce::Point<float> p)
         editStep (s, [v] (Step& st) { st.gate = juce::jlimit (0.05f, 4.0f, v * 2.0f); });
 }
 
+bool PianoRollComponent::isOnLaneBorder (juce::Point<int> p) const
+{
+    return lane != Lane::None && p.x > keyboardWidth && std::abs (p.y - (laneArea().getY() - 1)) <= 4;
+}
+
 void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
 {
     drag = Drag::None;
+    proc.beginGesture();
+
+    if (isOnLaneBorder (e.getPosition()))
+    {
+        drag = Drag::LaneSplit;
+        return;
+    }
+
     if (lane != Lane::None && laneArea().contains (e.getPosition()))
     {
         drag = Drag::Lane;
@@ -360,34 +414,69 @@ void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
 
     bool edge = false;
     const int n = noteAt (e.position, edge);
+    const bool multi = e.mods.isCommandDown() || e.mods.isCtrlDown();
 
     if (e.mods.isPopupMenu())
     {
         if (n >= 0)
+        {
+            if (! selected[(size_t) n])
+            {
+                selected.reset();
+                selected.set ((size_t) n);
+            }
             showNoteMenu (n);
+        }
         return;
     }
 
     if (n >= 0 && e.mods.isAltDown())
     {
         editStep (n, [] (Step& st) { st.active = false; });
+        selected.reset ((size_t) n);
+        return;
+    }
+
+    if (n >= 0 && multi)
+    {
+        selected.flip ((size_t) n); // Ctrl + click: add / remove from the selection
+        repaint();
         return;
     }
 
     if (n >= 0)
     {
-        dragStep = currentStep = n;
+        if (! selected[(size_t) n])
+        {
+            selected.reset();
+            selected.set ((size_t) n);
+        }
         dragOrigin = channelData().steps;
-        dragStartNote = channelData().steps[(size_t) n].note;
+        dragSelection = selected;
+        dragStep = n;
         dragStartGate = channelData().steps[(size_t) n].gate;
-        lastDragNote = dragStartNote;
+        lastDStep = lastDNote = 0;
         drag = edge ? Drag::Resize : Drag::Move;
+        repaint();
         return;
     }
 
+    if (multi)
+    {
+        // Ctrl + drag on empty space: rectangle selection
+        drag = Drag::Select;
+        selectStart = e.position;
+        selectRect = { e.position, e.position };
+        return;
+    }
+
+    selected.reset();
     const int s = (int) std::floor (xToStep (e.position.x));
     if (s < 0 || s >= channelData().length)
+    {
+        repaint();
         return;
+    }
 
     const int note = yToNote (e.position.y);
     const bool wasActive = channelData().steps[(size_t) s].active;
@@ -403,7 +492,10 @@ void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
         }
         st.active = true;
     });
-    dragStep = currentStep = s;
+    selected.set ((size_t) s);
+    dragOrigin = channelData().steps;
+    dragSelection = selected;
+    dragStep = s;
     dragStartGate = channelData().steps[(size_t) s].gate;
     drag = Drag::Create;
 }
@@ -412,29 +504,50 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
 {
     switch (drag)
     {
+        case Drag::LaneSplit:
+        {
+            const float frac = ((float) getHeight() - e.position.y) / (float) juce::jmax (1, getHeight());
+            proc.ui.laneSize[(size_t) channel] = juce::jlimit (0.1f, 0.75f, frac);
+            clampView();
+            repaint();
+            break;
+        }
+
         case Drag::Lane:
             setLaneValue (e.position);
             break;
 
+        case Drag::Select:
+        {
+            selectRect = juce::Rectangle<float> (selectStart, e.position);
+            selected.reset();
+            const auto& ch = channelData();
+            for (int s = 0; s < ch.length; ++s)
+                if (ch.steps[(size_t) s].active && noteRect (s).intersects (selectRect))
+                    selected.set ((size_t) s);
+            repaint();
+            break;
+        }
+
         case Drag::Resize:
         case Drag::Create:
         {
-            const float gate = juce::jlimit (0.1f, 4.0f, (float) (xToStep (e.position.x) - dragStep));
             if (drag == Drag::Create && e.getDistanceFromDragStartX() < 3)
                 break;
-            editStep (dragStep, [gate] (Step& st) { st.gate = gate; });
+            const float newGate = juce::jlimit (0.1f, 4.0f, (float) (xToStep (e.position.x) - dragStep));
+            resizeSelection (newGate - dragStartGate);
             break;
         }
 
         case Drag::Move:
         {
-            const int len = channelData().length;
-            const int toStep = juce::jlimit (0, len - 1, dragStep + juce::roundToInt (e.getDistanceFromDragStartX() / pxPerStep));
-            const int note = juce::jlimit (0, 127, dragStartNote + juce::roundToInt (-e.getDistanceFromDragStartY() / rowHeight));
-            if (toStep != currentStep || note != lastDragNote)
+            const int dStep = juce::roundToInt (e.getDistanceFromDragStartX() / pxPerStep);
+            const int dNote = juce::roundToInt (-e.getDistanceFromDragStartY() / rowHeight);
+            if (dStep != lastDStep || dNote != lastDNote)
             {
-                lastDragNote = note;
-                moveNote (dragStep, toStep, note);
+                lastDStep = dStep;
+                lastDNote = dNote;
+                moveSelection (dStep, dNote);
             }
             break;
         }
@@ -447,11 +560,18 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
 void PianoRollComponent::mouseUp (const juce::MouseEvent&)
 {
     drag = Drag::None;
-    dragStep = currentStep = -1;
+    dragStep = -1;
+    proc.endGesture();
+    repaint();
 }
 
 void PianoRollComponent::mouseMove (const juce::MouseEvent& e)
 {
+    if (isOnLaneBorder (e.getPosition()))
+    {
+        setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+        return;
+    }
     bool edge = false;
     const int n = noteArea().contains (e.getPosition()) ? noteAt (e.position, edge) : -1;
     setMouseCursor (n < 0 ? juce::MouseCursor::NormalCursor
@@ -460,10 +580,20 @@ void PianoRollComponent::mouseMove (const juce::MouseEvent& e)
 
 void PianoRollComponent::mouseDoubleClick (const juce::MouseEvent& e)
 {
+    if (isOnLaneBorder (e.getPosition()))
+    {
+        proc.ui.laneSize[(size_t) channel] = 0.28f; // default lane height
+        clampView();
+        repaint();
+        return;
+    }
     bool edge = false;
     const int n = noteAt (e.position, edge);
     if (n >= 0)
+    {
         editStep (n, [] (Step& st) { st.active = false; });
+        selected.reset ((size_t) n);
+    }
 }
 
 void PianoRollComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
@@ -504,31 +634,61 @@ void PianoRollComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::
 void PianoRollComponent::showNoteMenu (int step)
 {
     const auto st = channelData().steps[(size_t) step];
+    const int count = (int) selected.count();
+    const juce::String suffix = count > 1 ? " (" + juce::String (count) + " notes)" : juce::String();
+
     juce::PopupMenu m, chord;
-    m.addItem (1, "Accent", true, st.accent);
-    m.addItem (2, "Slide / Glide", true, st.slide);
+    m.addItem (1, "Accent" + suffix, true, st.accent);
+    m.addItem (2, "Slide / Glide" + suffix, true, st.slide);
     for (int i = 1; i <= 4; ++i)
         chord.addItem (10 + i, i == 1 ? juce::String ("Single note") : juce::String (i) + " notes (stacked thirds)", true, st.chord == i);
-    m.addSubMenu ("Chord / Stab", chord);
-    m.addItem (3, "Octave up");
-    m.addItem (4, "Octave down");
+    m.addSubMenu ("Chord / Stab" + suffix, chord);
+    m.addItem (3, "Octave up" + suffix);
+    m.addItem (4, "Octave down" + suffix);
     m.addSeparator();
-    m.addItem (5, "Delete note");
+    m.addItem (6, "Select all");
+    m.addItem (5, "Delete" + suffix);
 
-    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this), [this, step] (int r)
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this), [this, st] (int r)
     {
-        switch (r)
+        if (r == 0)
+            return;
+        if (r == 6)
         {
-            case 1: editStep (step, [] (Step& x) { x.accent = ! x.accent; if (x.accent) x.velocity = (uint8_t) juce::jmax<int> (x.velocity, 120); }); break;
-            case 2: editStep (step, [] (Step& x) { x.slide = ! x.slide; }); break;
-            case 3: editStep (step, [] (Step& x) { x.note = (int8_t) juce::jmin (120, x.note + 12); }); break;
-            case 4: editStep (step, [] (Step& x) { x.note = (int8_t) juce::jmax (12, x.note - 12); }); break;
-            case 5: editStep (step, [] (Step& x) { x.active = false; }); break;
-            default:
-                if (r > 10 && r <= 14)
-                    editStep (step, [r] (Step& x) { x.chord = (uint8_t) (r - 10); });
-                break;
+            selected.reset();
+            for (int s = 0; s < channelData().length; ++s)
+                if (channelData().steps[(size_t) s].active)
+                    selected.set ((size_t) s);
+            repaint();
+            return;
         }
+        if (r == 5)
+        {
+            deleteSelection();
+            return;
+        }
+
+        auto target = channelData().steps;
+        for (int s = 0; s < kMaxSteps; ++s)
+        {
+            if (! selected[(size_t) s])
+                continue;
+            auto& x = target[(size_t) s];
+            switch (r)
+            {
+                case 1: x.accent = ! st.accent; if (x.accent) x.velocity = (uint8_t) juce::jmax<int> (x.velocity, 120); break;
+                case 2: x.slide = ! st.slide; break;
+                case 3: x.note = (int8_t) juce::jmin (120, x.note + 12); break;
+                case 4: x.note = (int8_t) juce::jmax (12, x.note - 12); break;
+                default:
+                    if (r > 10 && r <= 14)
+                        x.chord = (uint8_t) (r - 10);
+                    break;
+            }
+        }
+        proc.beginGesture();
+        applySteps (target);
+        proc.endGesture();
     });
 }
 } // namespace pam

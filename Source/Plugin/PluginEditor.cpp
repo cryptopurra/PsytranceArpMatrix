@@ -20,6 +20,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     : AudioProcessorEditor (p), proc (p), dragSource (p)
 {
     setLookAndFeel (&lnf);
+    addAndMakeVisible (content);
+    content.painter = [this] (juce::Graphics& g) { paintContent (g); };
     auto& lf = lnf;
     lf.setColour (juce::ResizableWindow::backgroundColourId, kBg);
     lf.setColour (juce::ComboBox::backgroundColourId, kPanel.brighter (0.1f));
@@ -36,11 +38,11 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     title.setText ("PSYTRANCE ARP MATRIX  v" JucePlugin_VersionString, juce::dontSendNotification);
     title.setFont (juce::FontOptions (18.0f, juce::Font::bold));
     title.setColour (juce::Label::textColourId, kAccent);
-    addAndMakeVisible (title);
+    content.addAndMakeVisible (title);
 
     presetName.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.85f));
     presetName.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (presetName);
+    content.addAndMakeVisible (presetName);
 
     presetsButton.onClick  = [this] { showPresetMenu(); };
     saveButton.onClick     = [this]
@@ -60,7 +62,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     importButton.setTooltip ("Load a MIDI file: notes are analysed (key + scale) and loaded into the matrix. You can also drop .mid files on the plugin.");
 
     for (auto* b : { &presetsButton, &saveButton, &saveAsButton, &importButton, &generateButton, &resetButton, &panicButton })
-        addAndMakeVisible (b);
+        content.addAndMakeVisible (b);
 
     //--- key / global ------------------------------------------------------------
     juce::StringArray roots;
@@ -75,7 +77,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     {
         s->setSliderStyle (juce::Slider::LinearHorizontal);
         s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 44, 20);
-        addAndMakeVisible (s);
+        content.addAndMakeVisible (s);
     }
     sliderAttachments.push_back (std::make_unique<SliderAttachment> (proc.getState(), ParamID::length, lengthSlider));
     sliderAttachments.push_back (std::make_unique<SliderAttachment> (proc.getState(), ParamID::density, densitySlider));
@@ -86,7 +88,16 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     detected.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.7f));
     detected.setFont (juce::FontOptions (12.0f));
-    addAndMakeVisible (detected);
+    content.addAndMakeVisible (detected);
+
+    undoButton.setButtonText (juce::String::fromUTF8 ("\xe2\x97\x80"));   // left arrow
+    redoButton.setButtonText (juce::String::fromUTF8 ("\xe2\x96\xb6"));   // right arrow
+    undoButton.setTooltip ("Undo: back to the previous state (generate, edits, channel on/off, key...)");
+    redoButton.setTooltip ("Redo");
+    undoButton.onClick = [this] { proc.undo(); setStatus ("Undo"); };
+    redoButton.onClick = [this] { proc.redo(); setStatus ("Redo"); };
+    content.addAndMakeVisible (undoButton);
+    content.addAndMakeVisible (redoButton);
 
     const char* pageNames[] = { "1-16", "17-32", "33-48", "49-64" };
     for (int i = 0; i < 4; ++i)
@@ -94,15 +105,34 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         pageButtons[(size_t) i].setButtonText (pageNames[i]);
         pageButtons[(size_t) i].setClickingTogglesState (false);
         pageButtons[(size_t) i].onClick = [this, i] { setPage (i); };
-        addAndMakeVisible (pageButtons[(size_t) i]);
+        content.addAndMakeVisible (pageButtons[(size_t) i]);
     }
 
     //--- matrix ------------------------------------------------------------------
     for (int c = 0; c < kNumChannels; ++c)
     {
         strips[(size_t) c] = std::make_unique<ChannelStripComponent> (proc, c, kChannelColours[(size_t) c]);
-        strips[(size_t) c]->onLayoutChanged = [this] { resized(); };
-        addAndMakeVisible (*strips[(size_t) c]);
+        strips[(size_t) c]->onLayoutChanged = [this] { layoutContent(); };
+        content.addAndMakeVisible (*strips[(size_t) c]);
+    }
+
+    for (int i = 0; i < kNumChannels - 1; ++i)
+    {
+        auto& sp = splitters[(size_t) i];
+        sp.onStart = [this] { dragStartHeights = rowHeights; };
+        sp.onDrag = [this, i] (int dy)
+        {
+            constexpr int minH = 40;
+            auto h = dragStartHeights;
+            dy = juce::jlimit (minH - h[(size_t) i], h[(size_t) i + 1] - minH, dy);
+            h[(size_t) i] += dy;
+            h[(size_t) i + 1] -= dy;
+            rowHeights = h;
+            manualRows = true;
+            layoutContent();
+        };
+        sp.onReset = [this] { manualRows = false; layoutContent(); };
+        content.addAndMakeVisible (sp);
     }
 
     //--- performance -------------------------------------------------------------
@@ -130,7 +160,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     multitrackToggle.setButtonText ("1 FILE");
     multitrackToggle.setTooltip ("Drag a single multitrack MIDI file instead of one file per channel");
     multitrackToggle.onClick = [this] { dragSource.setMultitrack (multitrackToggle.getToggleState()); };
-    addAndMakeVisible (multitrackToggle);
+    content.addAndMakeVisible (multitrackToggle);
 
     addCaption (divisionBox, "TIME / SYNC");
     addCaption (modeBox, "MODE");
@@ -148,12 +178,12 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         setStatus ("Saved " + juce::String (files.size()) + " MIDI file(s) to Sequences/User_Exported/MIDI");
     };
     for (auto* b : { &newVarButton, &originalButton, &saveMidiButton })
-        addAndMakeVisible (b);
-    addAndMakeVisible (dragSource);
+        content.addAndMakeVisible (b);
+    content.addAndMakeVisible (dragSource);
 
     status.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.6f));
     status.setFont (juce::FontOptions (12.0f));
-    addAndMakeVisible (status);
+    content.addAndMakeVisible (status);
 
     proc.onMatrixChanged = [this] { refreshAll(); };
 
@@ -170,10 +200,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         const auto s = sizeFor (i);
         setSize (s.x, s.y);
     };
-    addAndMakeVisible (sizeBox);
+    content.addAndMakeVisible (sizeBox);
     addCaption (sizeBox, "SIZE");
 
-    setResizeLimits (980, 700, 2200, 1500);
+    setResizeLimits (640, 450, 2200, 1500);
     {
         const auto s = sizeFor (proc.ui.sizeIndex);
         setSize (s.x, s.y);
@@ -196,7 +226,7 @@ void PluginEditor::addCombo (juce::ComboBox& box, const juce::StringArray& items
     box.addItemList (items, 1);
     box.setTooltip (tip + "  (mouse wheel: change value)");
     box.setScrollWheelEnabled (true);
-    addAndMakeVisible (box);
+    content.addAndMakeVisible (box);
     comboAttachments.push_back (std::make_unique<ComboAttachment> (proc.getState(), id, box));
 }
 
@@ -204,7 +234,7 @@ void PluginEditor::addKnob (juce::Slider& s, const char* id, const juce::String&
 {
     s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 18);
-    addAndMakeVisible (s);
+    content.addAndMakeVisible (s);
     sliderAttachments.push_back (std::make_unique<SliderAttachment> (proc.getState(), id, s));
     addCaption (s, name);
 }
@@ -213,7 +243,7 @@ void PluginEditor::addToggle (juce::ToggleButton& b, const char* id, const juce:
 {
     b.setButtonText (text);
     b.setTooltip (tip);
-    addAndMakeVisible (b);
+    content.addAndMakeVisible (b);
     buttonAttachments.push_back (std::make_unique<ButtonAttachment> (proc.getState(), id, b));
 }
 
@@ -223,7 +253,7 @@ void PluginEditor::addCaption (juce::Component& c, const juce::String& text)
     l->setFont (juce::FontOptions (11.0f, juce::Font::bold));
     l->setColour (juce::Label::textColourId, kAccent.withAlpha (0.75f));
     l->setJustificationType (juce::Justification::centredLeft);
-    addAndMakeVisible (*l);
+    content.addAndMakeVisible (*l);
     captions[&c] = std::move (l);
 }
 
@@ -237,26 +267,41 @@ void PluginEditor::placeWithCaption (juce::Component& c, juce::Rectangle<int> ar
 //==============================================================================
 juce::StringArray PluginEditor::sizeNames()
 {
-    return { "S  980 x 700", "M  1080 x 760", "L  1280 x 900", "XL  1500 x 1050", "XXL  1800 x 1260" };
+    return { "XS  760 x 535", "S  880 x 620", "M  1080 x 760", "L  1280 x 900", "XL  1500 x 1050", "XXL  1800 x 1260" };
 }
 
 juce::Point<int> PluginEditor::sizeFor (int index)
 {
-    static const juce::Point<int> sizes[] = { { 980, 700 }, { 1080, 760 }, { 1280, 900 }, { 1500, 1050 }, { 1800, 1260 } };
-    return sizes[juce::jlimit (0, 4, index)];
+    static const juce::Point<int> sizes[] = { { 760, 535 }, { 880, 620 }, { 1080, 760 }, { 1280, 900 }, { 1500, 1050 }, { 1800, 1260 } };
+    return sizes[juce::jlimit (0, 5, index)];
 }
 
 void PluginEditor::paint (juce::Graphics& g)
 {
     g.fillAll (kBg);
+}
+
+void PluginEditor::paintContent (juce::Graphics& g)
+{
+    g.fillAll (kBg);
     g.setColour (kPanel);
-    g.fillRect (getLocalBounds().removeFromTop (52));
-    g.fillRoundedRectangle (getLocalBounds().removeFromBottom (170).reduced (8, 4).toFloat(), 8.0f);
+    g.fillRect (content.getLocalBounds().removeFromTop (52));
+    g.fillRoundedRectangle (content.getLocalBounds().removeFromBottom (170).reduced (8, 4).toFloat(), 8.0f);
 }
 
 void PluginEditor::resized()
 {
-    auto r = getLocalBounds();
+    // below the design size everything is scaled down uniformly; above it the layout stretches
+    constexpr float designW = 1080.0f, designH = 760.0f;
+    const float s = juce::jmin (1.0f, (float) getWidth() / designW, (float) getHeight() / designH);
+    content.setTransform (juce::AffineTransform::scale (s));
+    content.setBounds (0, 0, juce::roundToInt ((float) getWidth() / s), juce::roundToInt ((float) getHeight() / s));
+    layoutContent();
+}
+
+void PluginEditor::layoutContent()
+{
+    auto r = content.getLocalBounds();
 
     // header
     auto header = r.removeFromTop (52).reduced (10, 10);
@@ -275,11 +320,16 @@ void PluginEditor::resized()
     keyRow.removeFromLeft (8);
     lockToggle.setBounds (keyRow.removeFromLeft (70).withTrimmedTop (16));
     autoMatchToggle.setBounds (keyRow.removeFromLeft (110).withTrimmedTop (16));
-    placeWithCaption (lengthSlider, keyRow.removeFromLeft (170));
-    keyRow.removeFromLeft (8);
-    placeWithCaption (densitySlider, keyRow.removeFromLeft (170));
-    keyRow.removeFromLeft (8);
+    auto undoArea = keyRow.removeFromRight (84).withTrimmedTop (16);
+    undoButton.setBounds (undoArea.removeFromLeft (42).reduced (2, 0));
+    redoButton.setBounds (undoArea.reduced (2, 0));
+    keyRow.removeFromRight (8);
     auto pages = keyRow.removeFromRight (240).withTrimmedTop (16);
+    keyRow.removeFromRight (8);
+    const int sliderW = juce::jmax (100, (keyRow.getWidth() - 8) / 2);
+    placeWithCaption (lengthSlider, keyRow.removeFromLeft (sliderW));
+    keyRow.removeFromLeft (8);
+    placeWithCaption (densitySlider, keyRow.removeFromLeft (sliderW));
     for (auto& b : pageButtons)
         b.setBounds (pages.removeFromLeft (60).reduced (2, 0));
 
@@ -322,22 +372,57 @@ void PluginEditor::resized()
     if (auto it = captions.find (&sizeBox); it != captions.end())
         it->second->setBounds (sizeBox.getBounds().translated (0, -16).withHeight (16));
 
-    // matrix
-    // piano-roll rows get more height than step rows
+    // matrix: rows share the height automatically (disabled channels collapse), or follow the
+    // heights the user dragged with the splitters (double-click a splitter to go back to auto)
     auto matrixArea = r.reduced (8, 2);
-    float total = 0.0f;
-    std::array<float, kNumChannels> weight {};
+    constexpr int gap = 6, compactH = 40;
+    const int available = matrixArea.getHeight() - gap * (kNumChannels - 1);
+
+    int mask = 0;
     for (int c = 0; c < kNumChannels; ++c)
+        mask |= proc.getMatrix().isChannelEnabled (c) ? (1 << c) : 0;
+    if (mask != lastMask)
     {
-        weight[(size_t) c] = strips[(size_t) c]->isPianoRoll() ? 2.4f : 1.0f;
-        total += weight[(size_t) c];
+        manualRows = false;
+        lastMask = mask;
     }
-    const int available = matrixArea.getHeight();
+
+    std::array<int, kNumChannels> h {};
+    if (manualRows)
+    {
+        int sum = 0;
+        for (auto v : rowHeights) sum += v;
+        int used = 0;
+        for (int c = 0; c < kNumChannels; ++c)
+        {
+            h[(size_t) c] = c == kNumChannels - 1 ? available - used
+                                                  : juce::roundToInt ((float) available * (float) rowHeights[(size_t) c] / (float) juce::jmax (1, sum));
+            used += h[(size_t) c];
+        }
+    }
+    else
+    {
+        const int n = (int) std::bitset<kNumChannels> ((unsigned long) mask).count();
+        const bool equal = n == 0 || n == kNumChannels || available - (kNumChannels - n) * compactH < n * 110;
+        int used = 0;
+        for (int c = 0; c < kNumChannels; ++c)
+        {
+            const bool on = (mask >> c) & 1;
+            int v = equal ? available / kNumChannels
+                          : (on ? (available - (kNumChannels - n) * compactH) / n : compactH);
+            if (c == kNumChannels - 1)
+                v = available - used;
+            h[(size_t) c] = v;
+            used += v;
+        }
+    }
+    rowHeights = h;
+
     for (int c = 0; c < kNumChannels; ++c)
     {
-        const int h = c == kNumChannels - 1 ? matrixArea.getHeight()
-                                            : juce::roundToInt ((float) available * weight[(size_t) c] / total);
-        strips[(size_t) c]->setBounds (matrixArea.removeFromTop (h).reduced (0, 3));
+        strips[(size_t) c]->setBounds (matrixArea.removeFromTop (h[(size_t) c]));
+        if (c < kNumChannels - 1)
+            splitters[(size_t) c].setBounds (matrixArea.removeFromTop (gap));
     }
 }
 
@@ -365,12 +450,20 @@ void PluginEditor::refreshAll()
     if (page * 16 >= len)
         setPage (0);
 
+    int mask = 0;
+    for (int c = 0; c < kNumChannels; ++c)
+        mask |= proc.getMatrix().isChannelEnabled (c) ? (1 << c) : 0;
+    if (mask != lastMask)
+        layoutContent();
+
     dragSource.repaint();
     repaint();
 }
 
 void PluginEditor::timerCallback()
 {
+    undoButton.setEnabled (proc.canUndo());
+    redoButton.setEnabled (proc.canRedo());
     for (auto& s : strips)
         s->refresh();
 
@@ -502,7 +595,7 @@ void PluginEditor::filesDropped (const juce::StringArray& files, int x, int y)
     // dropped on a channel row -> import into that channel
     int target = 0;
     for (int c = 0; c < kNumChannels; ++c)
-        if (strips[(size_t) c]->getBounds().contains (x, y))
+        if (strips[(size_t) c]->getBounds().contains (content.getLocalPoint (this, juce::Point<int> (x, y))))
             target = c;
 
     for (auto& path : files)

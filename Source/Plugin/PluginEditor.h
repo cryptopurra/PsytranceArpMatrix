@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <bitset>
 #include <map>
 #include "PluginProcessor.h"
 #include "UI/ChannelStripComponent.h"
@@ -43,6 +44,37 @@ private:
     PluginProcessor& proc;
     juce::LookAndFeel_V4 lnf;   // declared first: outlives every child component
     juce::TooltipWindow tooltips { this, 600 };
+
+    /** Holds the whole UI; scaled down uniformly for the small window sizes. */
+    struct Content final : public juce::Component
+    {
+        std::function<void (juce::Graphics&)> painter;
+        void paint (juce::Graphics& g) override { if (painter) painter (g); }
+    };
+    Content content;
+
+    /** Draggable border between two channel rows (double-click: automatic heights). */
+    struct RowSplitter final : public juce::Component
+    {
+        RowSplitter() { setMouseCursor (juce::MouseCursor::UpDownResizeCursor); setRepaintsOnMouseActivity (true); }
+        std::function<void()> onStart, onReset;
+        std::function<void (int)> onDrag;
+        void paint (juce::Graphics& g) override
+        {
+            g.setColour (juce::Colour (0xff35e0ff).withAlpha (isMouseOverOrDragging() ? 0.6f : 0.12f));
+            g.fillRoundedRectangle (getLocalBounds().toFloat().withSizeKeepingCentre ((float) getWidth() * 0.3f, 2.0f), 1.0f);
+        }
+        void mouseDown (const juce::MouseEvent&) override         { if (onStart) onStart(); }
+        void mouseDrag (const juce::MouseEvent& e) override       { if (onDrag) onDrag (e.getDistanceFromDragStartY()); }
+        void mouseDoubleClick (const juce::MouseEvent&) override  { if (onReset) onReset(); }
+    };
+    std::array<RowSplitter, kNumChannels - 1> splitters;
+    std::array<int, kNumChannels> rowHeights {}, dragStartHeights {};
+    bool manualRows = false;
+    int lastMask = -1;
+    juce::TextButton undoButton, redoButton;
+    void paintContent (juce::Graphics&);
+    void layoutContent();
 
     // header
     juce::Label title, presetName, status, detected;
