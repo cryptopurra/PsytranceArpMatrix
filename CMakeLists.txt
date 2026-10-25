@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PsytranceArpMatrix VERSION 0.2.0 LANGUAGES C CXX)
+project(PsytranceArpMatrix VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -94,6 +94,7 @@ if(PAM_BUILD_PLUGIN)
         Source/Plugin/PluginEditor.cpp
         Source/Plugin/FactoryPresets.cpp
         Source/UI/StepGridComponent.cpp
+        Source/UI/PianoRollComponent.cpp
         Source/UI/ChannelStripComponent.cpp
         Source/UI/MidiDragSource.cpp)
 

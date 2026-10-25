@@ -69,6 +69,8 @@ Il plugin è uno strumento che **emette MIDI** (audio silenzioso). Con **MIDI OU
 
 Senza tasti premuti il pattern segue il transport (*FREE RUN*). Tenendo premuti dei tasti: con *KEY FOLLOW* la sequenza viene trasposta, e il Canale 1 diventa un arpeggiatore sulle note tenute secondo il *MODE* (Up, Down, Chord, Melody, Epic Motif…), usando il ritmo/gate/velocity del pattern. In Standalone i tasti avviano un clock interno al BPM del preset.
 
+**Vista per canale**: il pulsante `STEPS / PIANO ROLL` di ogni riga passa dalla griglia a step a un piano roll classico (le righe in piano roll diventano più alte). Nel piano roll: clic su uno spazio vuoto = nuova nota (trascina a destra per la durata) · trascina una nota = sposta tempo/altezza · bordo destro = durata · doppio clic o Alt+clic = cancella · tasto destro = accent/slide/accordo · rotella = scorre le note · **Ctrl + rotella = zoom orizzontale** · **Shift + rotella = zoom verticale**. Il pulsante `LANE` mostra/nasconde la corsia in basso (velocity o gate, si disegna trascinando). Il menu **SIZE** cambia la dimensione della finestra (S, M, L, XL, XXL).
+
 **Griglia**: clic = step on/off · trascina su/giù = nota (per gradi di scala) · Shift+trascina = velocity · Alt+clic = accento · tasto destro = accent, slide, accordo (stab 2-4 note), gate, ottava, clear.
 Trascinando un `.mid` sopra una riga, il file viene analizzato (tonica/scala) e caricato in quel canale; un MIDI multi-canale riempie più righe.
 

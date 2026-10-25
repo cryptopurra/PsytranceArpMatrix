@@ -110,6 +110,14 @@ public:
 
     std::function<void()> onMatrixChanged;          // editor hook (message thread)
 
+    /** Editor-only state, saved with the project. */
+    struct UiState
+    {
+        std::array<int, kNumChannels> view { 0, 0, 0, 0 };  // 0 = step grid, 1 = piano roll
+        std::array<int, kNumChannels> lane { 1, 1, 1, 1 };  // piano roll lane: 0 hidden, 1 velocity, 2 gate
+        int sizeIndex = 1;
+    } ui;
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void parameterChanged (const juce::String& id, float newValue) override;

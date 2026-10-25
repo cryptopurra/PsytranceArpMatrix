@@ -3,7 +3,7 @@
 namespace pam
 {
 ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::Colour col)
-    : proc (p), channel (c), colour (col), grid (p, c)
+    : proc (p), channel (c), colour (col), grid (p, c), roll (p, c)
 {
     onButton.setButtonText ("CH " + juce::String (c + 1));
     onButton.setTooltip ("Activate this channel. Enabling generates a part complementary to the active channels.");
@@ -51,7 +51,42 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
 
     grid.setAccentColour (colour);
     addAndMakeVisible (grid);
+    roll.setAccentColour (colour);
+    addChildComponent (roll);
+
+    viewButton.setTooltip ("Switch between the step grid and a classic piano roll for this channel");
+    viewButton.onClick = [this]
+    {
+        auto& v = proc.ui.view[(size_t) channel];
+        v = v == 0 ? 1 : 0;
+        updateViewButtons();
+        if (onLayoutChanged)
+            onLayoutChanged();
+    };
+    laneButton.setTooltip ("Piano roll lane: velocity / gate / hidden");
+    laneButton.onClick = [this]
+    {
+        auto& l = proc.ui.lane[(size_t) channel];
+        l = (l + 1) % 3;
+        updateViewButtons();
+        roll.resized();
+    };
+    addAndMakeVisible (viewButton);
+    addAndMakeVisible (laneButton);
+    updateViewButtons();
     refresh();
+}
+
+void ChannelStripComponent::updateViewButtons()
+{
+    const bool pr = isPianoRoll();
+    viewButton.setButtonText (pr ? "PIANO ROLL" : "STEPS");
+    const int l = proc.ui.lane[(size_t) channel];
+    laneButton.setButtonText (l == 0 ? "LANE OFF" : (l == 1 ? "LANE VEL" : "LANE GATE"));
+    laneButton.setEnabled (pr);
+    roll.setLane ((PianoRollComponent::Lane) l);
+    grid.setVisible (! pr);
+    roll.setVisible (pr);
 }
 
 void ChannelStripComponent::refresh()
@@ -65,6 +100,7 @@ void ChannelStripComponent::refresh()
     for (auto* b : { &regenButton, &varButton, &velButton, &gateButton })
         b->setEnabled (on);
     grid.refresh();
+    roll.refresh();
 }
 
 void ChannelStripComponent::paint (juce::Graphics& g)
@@ -77,7 +113,7 @@ void ChannelStripComponent::paint (juce::Graphics& g)
 
 void ChannelStripComponent::resized()
 {
-    auto r = getLocalBounds().reduced (8, 6);
+    auto r = getLocalBounds().reduced (8, 4);
     auto left = r.removeFromLeft (190);
 
     auto row1 = left.removeFromTop (24);
@@ -98,7 +134,13 @@ void ChannelStripComponent::resized()
     row3.removeFromLeft (6);
     stats.setBounds (row3);
 
+    left.removeFromTop (4);
+    auto row4 = left.removeFromTop (22);
+    viewButton.setBounds (row4.removeFromLeft (row4.getWidth() / 2).reduced (1, 0));
+    laneButton.setBounds (row4.reduced (1, 0));
+
     r.removeFromLeft (8);
     grid.setBounds (r);
+    roll.setBounds (r);
 }
 } // namespace pam

@@ -493,6 +493,15 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& dest)
     state.setProperty ("pattern", PatternSerializer::toJson (matrix.getPattern(), currentMeta()), nullptr);
     state.setProperty ("customScale", ScaleLibrary::getCustomMask(), nullptr);
     state.setProperty ("presetName", currentPresetName, nullptr);
+    juce::String views, lanes;
+    for (int c = 0; c < kNumChannels; ++c)
+    {
+        views << ui.view[(size_t) c];
+        lanes << ui.lane[(size_t) c];
+    }
+    state.setProperty ("uiViews", views, nullptr);
+    state.setProperty ("uiLanes", lanes, nullptr);
+    state.setProperty ("uiSize", ui.sizeIndex, nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
@@ -512,6 +521,16 @@ void PluginProcessor::setStateInformation (const void* data, int size)
 
     ScaleLibrary::setCustomMask ((int) tree.getProperty ("customScale", ScaleLibrary::getCustomMask()));
     currentPresetName = tree.getProperty ("presetName", "Init").toString();
+    {
+        const auto views = tree.getProperty ("uiViews", "0000").toString();
+        const auto lanes = tree.getProperty ("uiLanes", "1111").toString();
+        for (int c = 0; c < kNumChannels; ++c)
+        {
+            ui.view[(size_t) c] = juce::jlimit (0, 1, views.substring (c, c + 1).getIntValue());
+            ui.lane[(size_t) c] = juce::jlimit (0, 2, lanes.substring (c, c + 1).getIntValue());
+        }
+        ui.sizeIndex = juce::jlimit (0, 4, (int) tree.getProperty ("uiSize", 1));
+    }
 
     Pattern p;
     if (PatternSerializer::fromJson (tree.getProperty ("pattern").toString(), p))

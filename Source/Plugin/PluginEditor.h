@@ -64,7 +64,9 @@ private:
     juce::ComboBox divisionBox, modeBox, velModeBox, holdBox, varStyleBox, octaveBox, octRangeBox;
     juce::Slider swingKnob, gateKnob, velocityKnob, varAmountKnob;
     juce::ToggleButton keyFollowToggle, freeRunToggle, multitrackToggle;
-    juce::ComboBox outputBox;
+    juce::ComboBox outputBox, sizeBox;
+    static juce::StringArray sizeNames();
+    static juce::Point<int> sizeFor (int index);
     juce::TextButton newVarButton { "NEW VARIATION" }, originalButton { "ORIGINAL" }, saveMidiButton { "SAVE MIDI" };
     MidiDragSource dragSource;
 

@@ -101,6 +101,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     for (int c = 0; c < kNumChannels; ++c)
     {
         strips[(size_t) c] = std::make_unique<ChannelStripComponent> (proc, c, kChannelColours[(size_t) c]);
+        strips[(size_t) c]->onLayoutChanged = [this] { resized(); };
         addAndMakeVisible (*strips[(size_t) c]);
     }
 
@@ -158,8 +159,26 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     setPage (0);
     setResizable (true, true);
-    setResizeLimits (980, 700, 1600, 1100);
-    setSize (1080, 760);
+    sizeBox.addItemList (sizeNames(), 1);
+    sizeBox.setScrollWheelEnabled (true);
+    sizeBox.setTooltip ("Plugin window size (you can also drag the bottom-right corner)");
+    sizeBox.onChange = [this]
+    {
+        const int i = sizeBox.getSelectedItemIndex();
+        if (i < 0) return;
+        proc.ui.sizeIndex = i;
+        const auto s = sizeFor (i);
+        setSize (s.x, s.y);
+    };
+    addAndMakeVisible (sizeBox);
+    addCaption (sizeBox, "SIZE");
+
+    setResizeLimits (980, 700, 2200, 1500);
+    {
+        const auto s = sizeFor (proc.ui.sizeIndex);
+        setSize (s.x, s.y);
+        sizeBox.setSelectedItemIndex (proc.ui.sizeIndex, juce::dontSendNotification);
+    }
     refreshAll();
     startTimerHz (30);
 }
@@ -216,6 +235,17 @@ void PluginEditor::placeWithCaption (juce::Component& c, juce::Rectangle<int> ar
 }
 
 //==============================================================================
+juce::StringArray PluginEditor::sizeNames()
+{
+    return { "S  980 x 700", "M  1080 x 760", "L  1280 x 900", "XL  1500 x 1050", "XXL  1800 x 1260" };
+}
+
+juce::Point<int> PluginEditor::sizeFor (int index)
+{
+    static const juce::Point<int> sizes[] = { { 980, 700 }, { 1080, 760 }, { 1280, 900 }, { 1500, 1050 }, { 1800, 1260 } };
+    return sizes[juce::jlimit (0, 4, index)];
+}
+
 void PluginEditor::paint (juce::Graphics& g)
 {
     g.fillAll (kBg);
@@ -287,12 +317,28 @@ void PluginEditor::resized()
     row3.removeFromLeft (8);
     multitrackToggle.setBounds (row3.removeFromLeft (80));
     saveMidiButton.setBounds (row3.removeFromLeft (110).reduced (2, 2));
+    row3.removeFromLeft (16);
+    sizeBox.setBounds (row3.removeFromLeft (150).reduced (2, 3));
+    if (auto it = captions.find (&sizeBox); it != captions.end())
+        it->second->setBounds (sizeBox.getBounds().translated (0, -16).withHeight (16));
 
     // matrix
+    // piano-roll rows get more height than step rows
     auto matrixArea = r.reduced (8, 2);
-    const int h = matrixArea.getHeight() / kNumChannels;
-    for (auto& s : strips)
-        s->setBounds (matrixArea.removeFromTop (h).reduced (0, 3));
+    float total = 0.0f;
+    std::array<float, kNumChannels> weight {};
+    for (int c = 0; c < kNumChannels; ++c)
+    {
+        weight[(size_t) c] = strips[(size_t) c]->isPianoRoll() ? 2.4f : 1.0f;
+        total += weight[(size_t) c];
+    }
+    const int available = matrixArea.getHeight();
+    for (int c = 0; c < kNumChannels; ++c)
+    {
+        const int h = c == kNumChannels - 1 ? matrixArea.getHeight()
+                                            : juce::roundToInt ((float) available * weight[(size_t) c] / total);
+        strips[(size_t) c]->setBounds (matrixArea.removeFromTop (h).reduced (0, 3));
+    }
 }
 
 //==============================================================================

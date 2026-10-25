@@ -1,6 +1,7 @@
 #pragma once
 
 #include "StepGridComponent.h"
+#include "PianoRollComponent.h"
 
 namespace pam
 {
@@ -11,6 +12,8 @@ public:
     ChannelStripComponent (PluginProcessor& p, int channelIndex, juce::Colour colour);
 
     void setPage (int page)  { grid.setPage (page); }
+    bool isPianoRoll() const noexcept { return proc.ui.view[(size_t) channel] == 1; }
+    std::function<void()> onLayoutChanged;     // view switched: the editor re-distributes heights
     void refresh();
     void resized() override;
     void paint (juce::Graphics&) override;
@@ -25,6 +28,9 @@ private:
     juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" };
     juce::Label stats;
     StepGridComponent grid;
+    PianoRollComponent roll;
+    juce::TextButton viewButton, laneButton;
+    void updateViewButtons();
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment;
