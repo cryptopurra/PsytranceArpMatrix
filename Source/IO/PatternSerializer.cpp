@@ -1,4 +1,5 @@
 #include "PatternSerializer.h"
+#include <cmath>
 #include "../Core/Scales.h"
 
 namespace pam
