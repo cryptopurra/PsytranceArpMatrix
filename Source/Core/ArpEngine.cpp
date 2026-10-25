@@ -1,0 +1,375 @@
+#include "ArpEngine.h"
+
+#include <algorithm>
+#include <cmath>
+
+namespace pam
+{
+void ArpEngine::prepare (double sr)
+{
+    sampleRate = sr > 0.0 ? sr : 44100.0;
+    outBuffer.ensureSize (4096);
+    reset();
+}
+
+void ArpEngine::reset()
+{
+    numHeld = physicallyDown = 0;
+    numSounding = 0;
+    internalPpq = 0.0;
+    lastPpqEnd = -1.0;
+    lastTriggeredStep = -1;
+    running = false;
+    arpCounter.fill (0);
+    for (auto& s : playingStep)
+        s.store (-1);
+}
+
+//==============================================================================
+void ArpEngine::handleInput (const juce::MidiBuffer& in, const ArpParams& p)
+{
+    for (const auto meta : in)
+    {
+        const auto m = meta.getMessage();
+
+        if (m.isNoteOn())
+        {
+            if (p.holdMode == HoldMode::CleanHold && physicallyDown == 0)
+                numHeld = 0; // a new chord replaces the latched one
+
+            ++physicallyDown;
+            lastKeyNote.store (m.getNoteNumber());
+
+            bool exists = false;
+            for (int i = 0; i < numHeld; ++i)
+                if (held[(size_t) i].note == m.getNoteNumber())
+                {
+                    held[(size_t) i].velocity = m.getVelocity();
+                    exists = true;
+                }
+
+            if (! exists && numHeld < (int) held.size())
+                held[(size_t) numHeld++] = { m.getNoteNumber(), m.getVelocity(), orderCounter++ };
+        }
+        else if (m.isNoteOff())
+        {
+            physicallyDown = std::max (0, physicallyDown - 1);
+
+            if (p.holdMode == HoldMode::Off)
+            {
+                for (int i = 0; i < numHeld; ++i)
+                    if (held[(size_t) i].note == m.getNoteNumber())
+                    {
+                        held[(size_t) i] = held[(size_t) --numHeld];
+                        break;
+                    }
+            }
+        }
+        else if (m.isAllNotesOff() || m.isAllSoundOff())
+        {
+            numHeld = physicallyDown = 0;
+        }
+    }
+
+    if (p.holdMode == HoldMode::Off && physicallyDown == 0)
+        numHeld = 0;
+}
+
+//==============================================================================
+void ArpEngine::noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int offset, int lengthSamples)
+{
+    note = juce::jlimit (0, 127, note);
+    channel = juce::jlimit (1, 16, channel);
+
+    // retrigger: close an already sounding identical note first
+    for (int i = 0; i < numSounding; ++i)
+        if (sounding[(size_t) i].channel == channel && sounding[(size_t) i].note == note)
+        {
+            out.addEvent (juce::MidiMessage::noteOff (channel, note), offset);
+            sounding[(size_t) i] = sounding[(size_t) --numSounding];
+            break;
+        }
+
+    if (numSounding >= (int) sounding.size())
+        return;
+
+    out.addEvent (juce::MidiMessage::noteOn (channel, note, (juce::uint8) juce::jlimit (1, 127, velocity)), offset);
+    sounding[(size_t) numSounding++] = { channel, note, offset + std::max (1, lengthSamples) };
+}
+
+void ArpEngine::flushNoteOffs (juce::MidiBuffer& out, int numSamples)
+{
+    for (int i = 0; i < numSounding;)
+    {
+        auto& s = sounding[(size_t) i];
+        if (s.samplesLeft < numSamples)
+        {
+            out.addEvent (juce::MidiMessage::noteOff (s.channel, s.note), std::max (0, s.samplesLeft));
+            s = sounding[(size_t) --numSounding];
+        }
+        else
+        {
+            s.samplesLeft -= numSamples;
+            ++i;
+        }
+    }
+}
+
+void ArpEngine::allNotesOff (juce::MidiBuffer& out, int offset)
+{
+    for (int i = 0; i < numSounding; ++i)
+        out.addEvent (juce::MidiMessage::noteOff (sounding[(size_t) i].channel, sounding[(size_t) i].note), offset);
+    numSounding = 0;
+}
+
+//==============================================================================
+int ArpEngine::arpNote (int c, const Step& st, const Pattern& pattern, const ArpParams& p, int& keyVelocity)
+{
+    std::array<Held, 32> sorted {};
+    std::copy (held.begin(), held.begin() + numHeld, sorted.begin());
+    auto* end = sorted.begin() + numHeld;
+
+    if (p.mode == ArpMode::AsPlayed)
+        std::sort (sorted.begin(), end, [] (const Held& a, const Held& b) { return a.order < b.order; });
+    else
+        std::sort (sorted.begin(), end, [] (const Held& a, const Held& b) { return a.note < b.note; });
+
+    const int range = juce::jlimit (1, 4, p.octaveRange);
+    const int n = numHeld * range;
+    auto seqAt = [&] (int idx) -> Held
+    {
+        Held h = sorted[(size_t) (idx % numHeld)];
+        h.note += 12 * (idx / numHeld);
+        return h;
+    };
+
+    const int i = arpCounter[(size_t) c]++;
+    int idx = 0, extraOct = 0;
+
+    switch (p.mode)
+    {
+        case ArpMode::Up:
+        case ArpMode::AsPlayed:  idx = i % n; break;
+        case ArpMode::Down:      idx = n - 1 - (i % n); break;
+        case ArpMode::UpDown:
+        {
+            const int period = std::max (1, 2 * n - 2);
+            const int j = i % period;
+            idx = n > 1 ? (j < n ? j : period - j) : 0;
+            break;
+        }
+        case ArpMode::Random:    idx = rng.nextInt (n); break;
+        case ArpMode::Melody:
+        {
+            // the generated pattern's contour drives which held note plays
+            const auto& scale = ScaleLibrary::get()[pattern.scaleIndex];
+            const int deg = ScaleLibrary::noteToDegree (st.note, pattern.rootNote, scale, 48);
+            const int m = ((deg % n) + n) % n;
+            extraOct = (deg - m) / n;
+            idx = m;
+            break;
+        }
+        case ArpMode::EpicMotif:
+        {
+            static constexpr int motif[] = { 0, 2, 1, 3, 0, 3, 2, 4, 0, 2, 1, 3, 2, 4, 3, 5 };
+            const int v = motif[i % 16];
+            idx = v % n;
+            extraOct = v / n;
+            break;
+        }
+        case ArpMode::Chord:
+        case ArpMode::Step:
+        case ArpMode::numModes:  idx = i % n; break;
+    }
+
+    const Held h = seqAt (idx);
+    keyVelocity = h.velocity;
+    return h.note + 12 * juce::jlimit (-2, 2, extraOct);
+}
+
+void ArpEngine::triggerStep (juce::int64 k, int offset, double samplesPerStep,
+                             const Pattern& pattern, const ArpParams& p, juce::MidiBuffer& out)
+{
+    const auto& scale = ScaleLibrary::get()[pattern.scaleIndex];
+    const bool keys = numHeld > 0;
+
+    int lowestHeld = 128, lastVel = 100, newest = -1;
+    for (int i = 0; i < numHeld; ++i)
+    {
+        lowestHeld = std::min (lowestHeld, held[(size_t) i].note);
+        if (held[(size_t) i].order > newest)
+        {
+            newest = held[(size_t) i].order;
+            lastVel = held[(size_t) i].velocity;
+        }
+    }
+
+    for (int c = 0; c < kNumChannels; ++c)
+    {
+        const auto& ch = pattern.channels[(size_t) c];
+        if (! ch.enabled)
+        {
+            playingStep[(size_t) c].store (-1);
+            continue;
+        }
+
+        const int len = juce::jlimit (1, kMaxSteps, ch.length);
+        const int s = (int) (k % len);
+        playingStep[(size_t) c].store (s);
+
+        const auto& st = ch.steps[(size_t) s];
+        if (! st.active || (! keys && ! p.playWithoutKeys))
+            continue;
+
+        int keyVel = keys ? lastVel : st.velocity;
+        std::array<int, 8> notes {};
+        int numNotes = 0;
+        int transpose = 0;
+
+        if (c == 0 && keys && p.mode == ArpMode::Chord)
+        {
+            for (int i = 0; i < numHeld && numNotes < 8; ++i)
+                notes[(size_t) numNotes++] = held[(size_t) i].note;
+        }
+        else if (c == 0 && keys && p.mode != ArpMode::Step)
+        {
+            notes[(size_t) numNotes++] = arpNote (c, st, pattern, p, keyVel);
+        }
+        else
+        {
+            if (keys && p.keyFollow)
+            {
+                transpose = ((lowestHeld - pattern.rootNote) % 12 + 12) % 12;
+                if (transpose > 6)
+                    transpose -= 12;
+            }
+
+            if (st.chord > 1)
+            {
+                // stacked scale thirds above the step note
+                const int deg = ScaleLibrary::noteToDegree (st.note, pattern.rootNote, scale, 48);
+                for (int v = 0; v < std::min<int> (st.chord, 4); ++v)
+                    notes[(size_t) numNotes++] = ScaleLibrary::degreeToNote (deg + 2 * v, pattern.rootNote, scale, 48) + transpose;
+            }
+            else
+            {
+                notes[(size_t) numNotes++] = st.note + transpose;
+            }
+        }
+
+        const int root = (pattern.rootNote + transpose + 12) % 12;
+
+        int velocity = st.velocity;
+        switch (p.velocityMode)
+        {
+            case VelocityMode::Key:      velocity = keyVel + (st.accent ? 15 : 0); break;
+            case VelocityMode::Hold:     velocity = p.holdVelocity + (st.accent ? 15 : 0); break;
+            case VelocityMode::Step:     velocity = st.velocity; break;
+            case VelocityMode::StepKey:  velocity = st.velocity * keyVel / 127; break;
+            case VelocityMode::StepHold: velocity = st.velocity * p.holdVelocity / 127; break;
+            case VelocityMode::numModes: break;
+        }
+
+        float gate = st.gate * p.gateScale;
+        if (st.slide)
+            gate = std::max (gate, 1.08f); // overlap the next note -> legato / glide on mono synths
+        const int lengthSamples = std::max (16, (int) (gate * samplesPerStep));
+
+        const int outChannel = p.mergeToChannel1 ? 1 : ch.midiChannel;
+        for (int i = 0; i < numNotes; ++i)
+        {
+            int note = notes[(size_t) i] + 12 * p.octave;
+            if (p.lockToScale)
+                note = ScaleLibrary::quantize (note, root, scale);
+            noteOn (out, outChannel, note, velocity, offset, lengthSamples);
+        }
+    }
+}
+
+//==============================================================================
+void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position& pos,
+                         const Pattern& pattern, const ArpParams& p)
+{
+    handleInput (midi, p);
+
+    auto& out = outBuffer;
+    out.clear();
+    // pass through everything that is not a note (CC, pitch bend, ...)
+    for (const auto meta : midi)
+    {
+        const auto m = meta.getMessage();
+        if (! m.isNoteOnOrOff())
+            out.addEvent (m, meta.samplePosition);
+    }
+
+    const bool host = pos.hostPlaying && pos.hasHostPosition;
+    const bool internal = ! host && numHeld > 0;
+
+    if (! host && ! internal)
+    {
+        if (running)
+        {
+            allNotesOff (out, 0);
+            running = false;
+            lastTriggeredStep = -1;
+            lastPpqEnd = -1.0;
+            arpCounter.fill (0);
+            for (auto& s : playingStep)
+                s.store (-1);
+        }
+        flushNoteOffs (out, numSamples);
+        midi.swapWith (out);
+        return;
+    }
+
+    if ((internal && ! running) || (running && host != lastRunWasHost))
+    {
+        // (re)start or clock source changed: start a fresh step count
+        if (internal)
+            internalPpq = 0.0;
+        lastTriggeredStep = -1;
+        lastPpqEnd = -1.0;
+        arpCounter.fill (0);
+    }
+    lastRunWasHost = host;
+
+    running = true;
+    const double bpm = (pos.hasHostPosition && pos.bpm > 0.0) ? pos.bpm : (double) p.internalBpm;
+    const double ppqPerSample = bpm / 60.0 / sampleRate;
+    const double ppqStart = host ? pos.ppq : internalPpq;
+    const double ppqEnd = ppqStart + numSamples * ppqPerSample;
+
+    // loop / locate detection
+    if (lastPpqEnd >= 0.0 && std::abs (ppqStart - lastPpqEnd) > ppqPerSample * 64.0)
+    {
+        allNotesOff (out, 0);
+        lastTriggeredStep = -1;
+        arpCounter.fill (0);
+    }
+
+    const double stepLen = stepLengthInQuarters (p.division);
+    const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;
+    const double samplesPerStep = stepLen / ppqPerSample;
+
+    const auto firstStep = (juce::int64) std::floor (ppqStart / stepLen) - 1;
+    const auto lastStep  = (juce::int64) std::floor (ppqEnd / stepLen);
+
+    for (auto k = std::max<juce::int64> (0, firstStep); k <= lastStep; ++k)
+    {
+        const double t = (double) k * stepLen + ((k % 2) == 1 ? swingOffset : 0.0);
+        if (t < ppqStart || t >= ppqEnd || k <= lastTriggeredStep)
+            continue;
+
+        const int offset = juce::jlimit (0, numSamples - 1, (int) ((t - ppqStart) / ppqPerSample));
+        triggerStep (k, offset, samplesPerStep, pattern, p, out);
+        lastTriggeredStep = k;
+    }
+
+    flushNoteOffs (out, numSamples);
+    lastPpqEnd = ppqEnd;
+    if (internal)
+        internalPpq = ppqEnd;
+
+    midi.swapWith (out);
+}
+} // namespace pam

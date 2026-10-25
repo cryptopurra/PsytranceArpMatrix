@@ -1,0 +1,29 @@
+# build output
+build/
+build-*/
+cmake-build-*/
+out/
+_deps/
+*.vst3
+*.component
+*.app
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.user
+.DS_Store
+Thumbs.db
+
+# python
+__pycache__/
+*.pyc
+
+# local, copyrighted MIDI libraries used only for offline analysis — never commit them
+MidiLibrary/
+midi_library/
+*.zip
+
+# runtime caches
+Drag_Cache/
