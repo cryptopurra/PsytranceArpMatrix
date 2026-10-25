@@ -1,4 +1,6 @@
 #include "MidiAnalyzer.h"
+#include <iterator>
+#include <cmath>
 
 namespace pam
 {

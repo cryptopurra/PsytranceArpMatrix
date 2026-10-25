@@ -49,7 +49,13 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} ${{ matrix.cmake_extra }}
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel 4
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build --config ${{ env.BUILD_TYPE }} --parallel 4 2>&1 | tee build.log || {
+            # surface compiler errors as annotations (readable without access to the raw log)
+            grep -iE "error( |:)|fatal error" build.log | grep -v "warning" | sort -u | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1; }
 
       - name: Unit tests
         run: ctest --test-dir build -C ${{ env.BUILD_TYPE }} --output-on-failure

@@ -5,6 +5,8 @@
 //   PamPresetBuilder <outputDir>
 //
 #include <juce_core/juce_core.h>
+#include <iostream>
+#include <vector>
 #include "../Source/Core/ChannelMatrix.h"
 #include "../Source/IO/PresetManager.h"
 

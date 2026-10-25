@@ -1,5 +1,6 @@
 // Headless unit tests for the core engine (no GUI / audio device needed).
 #include <juce_core/juce_core.h>
+#include <iostream>
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include "../Source/Core/ArpEngine.h"

@@ -1,4 +1,5 @@
 #include "MultiMidiExporter.h"
+#include <cmath>
 #include "../Core/Scales.h"
 
 namespace pam

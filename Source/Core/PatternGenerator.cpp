@@ -1,4 +1,6 @@
 #include "PatternGenerator.h"
+#include <cmath>
+#include <cstdlib>
 
 namespace pam
 {
