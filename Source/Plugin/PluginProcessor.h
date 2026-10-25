@@ -55,7 +55,9 @@ public:
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout&) const override { return true; }
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
+    using AudioProcessor::processBlockBypassed;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override                     { return true; }
@@ -129,6 +131,7 @@ private:
 
     std::atomic<bool> paramsDirty { false }, keyDirty { false }, channelsDirty { false }, lengthDirty { false };
     std::atomic<bool> panicRequested { false };
+    bool wasBypassed = false;
     bool suppressListener = false;
     juce::String currentPresetName = "Init";
     KeyDetection importKey;

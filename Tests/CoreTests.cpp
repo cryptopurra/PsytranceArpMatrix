@@ -334,6 +334,72 @@ public:
         e.process (stopBuf, block, { false, ppq, bpm, true }, p, params);
         expectEquals (countNoteOns (stopBuf), 0);
 
+        beginTest ("host position jitter does not retrigger or choke notes");
+        {
+            ArpEngine j;
+            j.prepare (48000.0);
+            ArpParams jp;
+            int ons = 0, offsBeforeOn = 0;
+            double q = 0.0;
+            const int blk = 256;
+            juce::Random r (42);
+            for (int done = 0; done < samplesPerBar; done += blk)
+            {
+                juce::MidiBuffer b;
+                const double jitter = (r.nextFloat() - 0.5) * 0.02; // +-0.01 quarter, like latency-compensated hosts
+                j.process (b, juce::jmin (blk, samplesPerBar - done), { true, juce::jmax (0.0, q + jitter), bpm, true, false }, p, jp);
+                for (const auto meta : b)
+                {
+                    ons += meta.getMessage().isNoteOn() && meta.getMessage().getChannel() == 1 ? 1 : 0;
+                    offsBeforeOn += meta.getMessage().isAllNotesOff() ? 1 : 0;
+                }
+                q += blk * bpm / 60.0 / 48000.0;
+            }
+            expect (std::abs (ons - p.channels[0].countActive()) <= 1, "notes: " + juce::String (ons));
+            expectEquals (offsBeforeOn, 0);
+        }
+
+        beginTest ("inside a DAW: stopped transport stays silent even with latched keys");
+        {
+            ArpEngine d;
+            d.prepare (48000.0);
+            ArpParams dp;
+            dp.holdMode = HoldMode::Latch;
+            juce::MidiBuffer k;
+            k.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
+            k.addEvent (juce::MidiMessage::noteOff (1, 60), 10);
+            d.process (k, 512, { false, 0.0, bpm, true, false }, p, dp);
+            int total = countNoteOns (k);
+            for (int i = 0; i < 50; ++i)
+            {
+                juce::MidiBuffer b;
+                d.process (b, 512, { false, 0.0, bpm, true, false }, p, dp);
+                total += countNoteOns (b);
+            }
+            expectEquals (total, 0);
+        }
+
+        beginTest ("stopAll closes sounding notes");
+        {
+            ArpEngine s;
+            s.prepare (48000.0);
+            ArpParams sp;
+            sp.gateScale = 2.0f;
+            int on = 0, off = 0;
+            double q = 0.0;
+            for (int i = 0; i < 20; ++i)
+            {
+                juce::MidiBuffer b;
+                s.process (b, 512, { true, q, bpm, true, false }, p, sp);
+                for (const auto meta : b) { on += meta.getMessage().isNoteOn() ? 1 : 0; off += meta.getMessage().isNoteOff() ? 1 : 0; }
+                q += 512 * bpm / 60.0 / 48000.0;
+            }
+            juce::MidiBuffer b;
+            s.stopAll (b, sp);
+            for (const auto meta : b) off += meta.getMessage().isNoteOff() ? 1 : 0;
+            expectEquals (off, on);
+        }
+
         beginTest ("internal clock with held keys + arp Up");
         params.mode = ArpMode::Up;
         params.playWithoutKeys = false;

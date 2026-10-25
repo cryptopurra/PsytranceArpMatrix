@@ -10,7 +10,7 @@ struct ArpParams
 {
     ArpMode       mode           = ArpMode::Step;
     VelocityMode  velocityMode   = VelocityMode::Step;
-    HoldMode      holdMode       = HoldMode::CleanHold;
+    HoldMode      holdMode       = HoldMode::Off;
     TimeDivision  division       = TimeDivision::Sixteenth;
     float swing          = 0.0f;  // 0..1 (delays every second step by up to 1/3 step)
     float gateScale      = 1.0f;  // global gate length multiplier ("% of time")
@@ -38,11 +38,15 @@ public:
         double ppq = 0.0;        // position at block start (quarters)
         double bpm = 142.0;
         bool   hasHostPosition = false;
+        bool   allowInternalClock = true; // false inside a DAW: never play while the transport is stopped
     };
 
     /** Consumes the incoming MIDI (keys) and replaces it with the generated MIDI. */
     void process (juce::MidiBuffer& midi, int numSamples, const Position& pos,
                   const Pattern& pattern, const ArpParams& params);
+
+    /** Sends note-offs for everything sounding + All Notes Off (bypass, panic, transport stop). */
+    void stopAll (juce::MidiBuffer& out, const ArpParams& p);
 
     int currentStep (int channel) const noexcept { return playingStep[(size_t) channel].load(); }
     bool isRunning() const noexcept               { return running; }
@@ -58,6 +62,7 @@ private:
     void noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int sampleOffset, int lengthSamples);
     void flushNoteOffs (juce::MidiBuffer& out, int numSamples);
     void allNotesOff (juce::MidiBuffer& out, int sampleOffset);
+    void allSoundOff (juce::MidiBuffer& out, const ArpParams& p, int sampleOffset);
     int  arpNote (int channel, const Step& st, const Pattern& pattern, const ArpParams& p, int& keyVelocity);
 
     double sampleRate = 44100.0;

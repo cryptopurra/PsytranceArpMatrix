@@ -115,6 +115,28 @@ void ArpEngine::flushNoteOffs (juce::MidiBuffer& out, int numSamples)
     }
 }
 
+void ArpEngine::allSoundOff (juce::MidiBuffer& out, const ArpParams& p, int offset)
+{
+    // "All Notes Off" on every channel we can output on: clears notes a synth may still hold
+    if (p.mergeToChannel1)
+        out.addEvent (juce::MidiMessage::allNotesOff (1), offset);
+    else
+        for (int ch = 1; ch <= kNumChannels; ++ch)
+            out.addEvent (juce::MidiMessage::allNotesOff (ch), offset);
+}
+
+void ArpEngine::stopAll (juce::MidiBuffer& out, const ArpParams& p)
+{
+    allNotesOff (out, 0);
+    allSoundOff (out, p, 0);
+    running = false;
+    lastTriggeredStep = -1;
+    lastPpqEnd = -1.0;
+    arpCounter.fill (0);
+    for (auto& s : playingStep)
+        s.store (-1);
+}
+
 void ArpEngine::allNotesOff (juce::MidiBuffer& out, int offset)
 {
     for (int i = 0; i < numSounding; ++i)
@@ -303,13 +325,16 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     }
 
     const bool host = pos.hostPlaying && pos.hasHostPosition;
-    const bool internal = ! host && numHeld > 0;
+    // Inside a DAW the transport is the only clock: when it stops we stop, even with latched keys.
+    // The free-running internal clock is only for the Standalone app / hosts without a playhead.
+    const bool internal = ! host && numHeld > 0 && pos.allowInternalClock;
 
     if (! host && ! internal)
     {
         if (running)
         {
             allNotesOff (out, 0);
+            allSoundOff (out, p, 0);
             running = false;
             lastTriggeredStep = -1;
             lastPpqEnd = -1.0;
@@ -339,25 +364,35 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     const double ppqStart = host ? pos.ppq : internalPpq;
     const double ppqEnd = ppqStart + numSamples * ppqPerSample;
 
-    // loop / locate detection
-    if (lastPpqEnd >= 0.0 && std::abs (ppqStart - lastPpqEnd) > ppqPerSample * 64.0)
+    const double stepLenForJump = stepLengthInQuarters (p.division);
+
+    // loop / locate detection. Hosts (Cubase with latency compensation, for example) report
+    // block positions with small jitter, so only a real jump counts: going back by more than half
+    // a step (cycle / locate) or forward by more than two steps.
+    const bool jumped = lastPpqEnd >= 0.0
+        && (ppqStart < lastPpqEnd - stepLenForJump * 0.5 || ppqStart > lastPpqEnd + stepLenForJump * 2.0);
+    if (jumped)
     {
         allNotesOff (out, 0);
         lastTriggeredStep = -1;
         arpCounter.fill (0);
     }
 
+    // continuous playback: scan from where the previous block ended, so a small forward jitter
+    // cannot skip a step (a small backward jitter is covered by lastTriggeredStep)
+    const double scanStart = (! jumped && lastPpqEnd >= 0.0) ? juce::jmin (ppqStart, lastPpqEnd) : ppqStart;
+
     const double stepLen = stepLengthInQuarters (p.division);
     const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;
     const double samplesPerStep = stepLen / ppqPerSample;
 
-    const auto firstStep = (juce::int64) std::floor (ppqStart / stepLen) - 1;
+    const auto firstStep = (juce::int64) std::floor (scanStart / stepLen) - 1;
     const auto lastStep  = (juce::int64) std::floor (ppqEnd / stepLen);
 
     for (auto k = std::max<juce::int64> (0, firstStep); k <= lastStep; ++k)
     {
         const double t = (double) k * stepLen + ((k % 2) == 1 ? swingOffset : 0.0);
-        if (t < ppqStart || t >= ppqEnd || k <= lastTriggeredStep)
+        if (t < scanStart || t >= ppqEnd || k <= lastTriggeredStep)
             continue;
 
         const int offset = juce::jlimit (0, numSamples - 1, (int) ((t - ppqStart) / ppqPerSample));

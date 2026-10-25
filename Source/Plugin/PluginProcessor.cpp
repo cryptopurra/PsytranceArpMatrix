@@ -62,7 +62,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::arpMode, 1 }, "Mode", PatternSerializer::arpModeNames(), (int) ArpMode::Step));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::velMode, 1 }, "Velocity Mode", PatternSerializer::velocityModeNames(), (int) VelocityMode::Step));
     l.add (std::make_unique<AudioParameterInt>    (ParameterID { ParamID::velocity, 1 }, "Velocity", 1, 127, 100));
-    l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::holdMode, 1 }, "Hold", PatternSerializer::holdModeNames(), (int) HoldMode::CleanHold));
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::holdMode, 1 }, "Hold", PatternSerializer::holdModeNames(), (int) HoldMode::Off));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::keyFollow, 1 }, "Key Follow", true));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::freeRun, 1 }, "Play Without Keys", true));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::mergeOut, 1 }, "Merge To MIDI Ch 1", false));
@@ -172,18 +172,24 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     if (panicRequested.exchange (false))
     {
-        engine.reset();
         midi.clear();
+        engine.stopAll (midi, readArpParams());
+        engine.reset();
         for (int ch = 1; ch <= 16; ++ch)
+        {
             midi.addEvent (juce::MidiMessage::allNotesOff (ch), 0);
+            midi.addEvent (juce::MidiMessage::allSoundOff (ch), 0);
+        }
         return;
     }
+    wasBypassed = false;
 
     for (const auto meta : midi)
         if (meta.getMessage().isNoteOn())
             keyTracker.noteOn (meta.getMessage().getNoteNumber(), meta.getMessage().getVelocity());
 
     ArpEngine::Position pos;
+    pos.allowInternalClock = wrapperType == wrapperType_Standalone;
     if (auto* ph = getPlayHead())
     {
         if (auto info = ph->getPosition())
@@ -194,6 +200,10 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
                 pos.ppq = *ppq;
                 pos.hasHostPosition = true;
             }
+            else
+            {
+                pos.allowInternalClock = true; // host without a musical position: free run on held keys
+            }
             if (auto bpm = info->getBpm())
             {
                 pos.bpm = *bpm;
@@ -203,6 +213,19 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
 
     engine.process (midi, buffer.getNumSamples(), pos, audioPattern, readArpParams());
+}
+
+void PluginProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+{
+    // Bypass must silence the synths we drive: close every note we started, once.
+    buffer.clear();
+    midi.clear();
+    if (! wasBypassed)
+    {
+        engine.stopAll (midi, readArpParams());
+        engine.reset();
+        wasBypassed = true;
+    }
 }
 
 //==============================================================================
