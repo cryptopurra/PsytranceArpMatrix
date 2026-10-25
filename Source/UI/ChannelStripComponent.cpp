@@ -13,9 +13,17 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
     styleBox.setScrollWheelEnabled (true);
     addAndMakeVisible (styleBox);
 
+    for (int i = 1; i <= 16; ++i)
+        midiBox.addItem ("OUT " + juce::String (i), i);
+    midiBox.setScrollWheelEnabled (true);
+    midiBox.setTooltip ("MIDI channel this matrix channel is sent on (route each one to a different synth). "
+                        "Ignored when OUTPUT is set to Master.");
+    addAndMakeVisible (midiBox);
+
     auto& state = proc.getState();
     onAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, ParamID::channelOn (c), onButton);
     styleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelStyle (c), styleBox);
+    midiAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelMidi (c), midiBox);
 
     regenButton.setTooltip ("Regenerate this channel only (others stay untouched)");
     regenButton.onClick = [this] { proc.editMatrix ([ch = channel] (ChannelMatrix& m) { m.regenerateChannel (ch); }); };
@@ -49,7 +57,9 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
 void ChannelStripComponent::refresh()
 {
     const auto& ch = proc.getMatrix().getPattern().channels[(size_t) channel];
-    stats.setText ("MIDI ch " + juce::String (ch.midiChannel) + "  |  " + juce::String (ch.countActive()) + " notes"
+    const bool master = proc.getState().getRawParameterValue (ParamID::mergeOut)->load() > 0.5f;
+    stats.setText ((master ? juce::String ("-> master ch 1") : "-> ch " + juce::String (ch.midiChannel))
+                   + "  |  " + juce::String (ch.countActive()) + " notes"
                    + (ch.userEdited ? "  |  edited" : ""), juce::dontSendNotification);
     const bool on = ch.enabled;
     for (auto* b : { &regenButton, &varButton, &velButton, &gateButton })
@@ -82,7 +92,11 @@ void ChannelStripComponent::resized()
     velButton.setBounds (row2.removeFromLeft (w).reduced (1, 0));
     gateButton.setBounds (row2.reduced (1, 0));
 
-    stats.setBounds (left.removeFromTop (18));
+    left.removeFromTop (4);
+    auto row3 = left.removeFromTop (22);
+    midiBox.setBounds (row3.removeFromLeft (76));
+    row3.removeFromLeft (6);
+    stats.setBounds (row3);
 
     r.removeFromLeft (8);
     grid.setBounds (r);

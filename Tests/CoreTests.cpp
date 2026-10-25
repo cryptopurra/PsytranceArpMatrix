@@ -537,6 +537,43 @@ public:
             }
         }
 
+        beginTest ("per-channel MIDI out vs master output");
+        {
+            ChannelMatrix rm;
+            rm.setSeed (9);
+            rm.initialiseDefault();
+            rm.setChannelEnabled (1, true);
+            rm.setChannelMidiChannel (0, 5);
+            rm.setChannelMidiChannel (1, 9);
+            for (int master = 0; master < 2; ++master)
+            {
+                ArpEngine re;
+                re.prepare (48000.0);
+                ArpParams rp;
+                rp.mergeToChannel1 = master == 1;
+                std::array<int, 17> perCh {};
+                double q = 0.0;
+                for (int i = 0; i < 200; ++i)
+                {
+                    juce::MidiBuffer b;
+                    re.process (b, 256, { true, q, bpm, true, false }, rm.getPattern(), rp);
+                    for (const auto meta : b)
+                        if (meta.getMessage().isNoteOn()) ++perCh[(size_t) meta.getMessage().getChannel()];
+                    q += 256 * bpm / 60.0 / 48000.0;
+                }
+                if (master == 0)
+                {
+                    expect (perCh[5] > 0 && perCh[9] > 0);
+                    expectEquals (perCh[1] + perCh[2], 0);
+                }
+                else
+                {
+                    expect (perCh[1] > 0);
+                    expectEquals (perCh[5] + perCh[9], 0);
+                }
+            }
+        }
+
         beginTest ("internal clock with held keys + arp Up");
         params.mode = ArpMode::Up;
         params.playWithoutKeys = false;

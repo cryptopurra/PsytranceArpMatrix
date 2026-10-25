@@ -63,7 +63,8 @@ private:
     // performance
     juce::ComboBox divisionBox, modeBox, velModeBox, holdBox, varStyleBox, octaveBox, octRangeBox;
     juce::Slider swingKnob, gateKnob, velocityKnob, varAmountKnob;
-    juce::ToggleButton keyFollowToggle, freeRunToggle, mergeToggle, multitrackToggle;
+    juce::ToggleButton keyFollowToggle, freeRunToggle, multitrackToggle;
+    juce::ComboBox outputBox;
     juce::TextButton newVarButton { "NEW VARIATION" }, originalButton { "ORIGINAL" }, saveMidiButton { "SAVE MIDI" };
     MidiDragSource dragSource;
 

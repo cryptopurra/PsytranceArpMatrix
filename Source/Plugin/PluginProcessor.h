@@ -35,6 +35,7 @@ namespace ParamID
     inline constexpr const char* varAmount   = "varAmount";
     inline juce::String channelOn (int c)    { return "ch" + juce::String (c + 1) + "On"; }
     inline juce::String channelStyle (int c) { return "ch" + juce::String (c + 1) + "Style"; }
+    inline juce::String channelMidi (int c)  { return "ch" + juce::String (c + 1) + "Midi"; }
 }
 
 /** MIDI generator plugin. Owns:

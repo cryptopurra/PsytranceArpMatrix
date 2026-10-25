@@ -65,7 +65,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::holdMode, 1 }, "Hold", PatternSerializer::holdModeNames(), (int) HoldMode::Off));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::keyFollow, 1 }, "Key Follow", false));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::freeRun, 1 }, "Play Without Keys", true));
-    l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::mergeOut, 1 }, "Merge To MIDI Ch 1", false));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::mergeOut, 1 }, "MIDI Output: Master Ch 1", false));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::varStyle, 1 }, "Variation Style", PatternSerializer::variationStyleNames(), 0));
     l.add (std::make_unique<AudioParameterFloat>  (ParameterID { ParamID::varAmount, 1 }, "Variation", NormalisableRange<float> (0.0f, 100.0f, 1.0f), 65.0f, pct));
 
@@ -76,6 +76,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
         l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::channelStyle (c), 1 },
                                                        "Ch" + String (c + 1) + " Style",
                                                        PatternSerializer::styleNames(), (int) defaultStyleForChannel (c)));
+        l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelMidi (c), 1 },
+                                                    "Ch" + String (c + 1) + " MIDI Out Channel", 1, 16, c + 1));
     }
     return l;
 }
@@ -95,6 +97,7 @@ PluginProcessor::PluginProcessor()
     {
         apvts.addParameterListener (ParamID::channelOn (c), this);
         apvts.addParameterListener (ParamID::channelStyle (c), this);
+        apvts.addParameterListener (ParamID::channelMidi (c), this);
     }
 
     presets.ensureFolderStructure();
@@ -107,7 +110,10 @@ PluginProcessor::PluginProcessor()
     matrix.setLockToScale (value (apvts, ParamID::lock) > 0.5f);
     matrix.setLength ((int) value (apvts, ParamID::length));
     for (int c = 0; c < kNumChannels; ++c)
+    {
         matrix.setChannelStyle (c, (GeneratorStyle) choiceIndex (apvts, ParamID::channelStyle (c).toRawUTF8()), false);
+        matrix.setChannelMidiChannel (c, juce::roundToInt (value (apvts, ParamID::channelMidi (c))));
+    }
     matrix.initialiseDefault();
     publishPattern();
 
@@ -274,6 +280,10 @@ void PluginProcessor::handleAsyncUpdate()
                 matrix.setChannelStyle (c, style, true);
 
             // dynamic activation: enabling generates ONLY this channel, complementary to the others
+            const int midiCh = juce::roundToInt (value (apvts, ParamID::channelMidi (c)));
+            if (midiCh != matrix.getPattern().channels[(size_t) c].midiChannel)
+                matrix.setChannelMidiChannel (c, midiCh);
+
             const bool on = value (apvts, ParamID::channelOn (c)) > 0.5f;
             if (on != matrix.isChannelEnabled (c))
                 matrix.setChannelEnabled (c, on);
@@ -317,6 +327,7 @@ void PluginProcessor::syncChannelParamsFromMatrix()
     {
         setParam (apvts, ParamID::channelOn (c), p.channels[(size_t) c].enabled ? 1.0f : 0.0f);
         setParam (apvts, ParamID::channelStyle (c), (float) (int) p.channels[(size_t) c].style);
+        setParam (apvts, ParamID::channelMidi (c), (float) p.channels[(size_t) c].midiChannel);
     }
     setParam (apvts, ParamID::root, (float) p.rootNote);
     setParam (apvts, ParamID::scale, (float) p.scaleIndex);

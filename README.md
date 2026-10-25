@@ -51,12 +51,19 @@ La CI di GitHub Actions ([.github/workflows/build.yml](.github/workflows/build.y
 
 ## Uso nella DAW
 
-Il plugin è uno strumento che **emette MIDI** (audio silenzioso). Ogni canale della matrice esce sul proprio canale MIDI (1-4); con *MERGE CH1* tutto esce sul canale 1.
+Il plugin è uno strumento che **emette MIDI** (audio silenzioso). Con **MIDI OUTPUT = Per channel** ogni riga della matrice esce sul proprio canale MIDI (selettore `OUT 1-16` in ogni riga), così il canale 1 può pilotare Serum, il 2 Spire, il 3 Sylenth1, il 4 un altro synth (es. domanda sul canale 1, risposta sul canale 2). Con **Master (ch 1)** tutto esce sul canale 1.
+
+### Cubase: un synth per canale
+
+1. Traccia strumento con Psytrance Arp Matrix (genera il MIDI). Attiva **Monitor** anche su questa traccia.
+2. Per ogni synth (Serum, Spire, …): traccia strumento → Inspector → **Ingresso MIDI = Psytrance Arp Matrix** → attiva **Monitor**.
+3. Sulla stessa traccia apri **Input Transformer** (Inspector, sezione in alto) → modalità *Locale* → condizione `Canale MIDI` **diverso da** N → funzione **Filtro**. Così il synth riceve solo il canale N.
+
+**Sincronizzazione con il ciclo (loop) attivo:** in Cubase il MIDI dal vivo di un plugin instradato verso un'altra traccia può andare fuori tempo dopo il ritorno del ciclo, mentre il MIDI registrato è corretto. È un comportamento noto di Cubase con ASIO-Guard, non del plugin. Rimedi: Monitor attivo anche sulla traccia di Psytrance Arp Matrix; disattivare ASIO-Guard per il plugin (Studio ▸ VST Plug-in Manager ▸ plugin ▸ *Disattiva ASIO-Guard*) o abbassarlo a *Normale*; buffer ASIO ≤ 512. Per il mix finale usare DRAG MIDI / SAVE MIDI (timing perfetto).
 
 | DAW | Come instradare il MIDI |
 |---|---|
-| Cubase | Traccia strumento con Psytrance Arp Matrix → nelle tracce MIDI dei synth imposta *Input = Psytrance Arp Matrix* e filtra il canale 1-4 |
-| Ableton Live | Traccia MIDI con il plugin → sulle tracce dei synth *MIDI From = traccia del plugin / Psytrance Arp Matrix*, canale 1-4 |
+| Ableton Live | Traccia MIDI per ogni synth → *MIDI From = traccia del plugin / Psytrance Arp Matrix*, canale 1-4 |
 | FL Studio | Wrapper → *MIDI output port*, synth sullo stesso port; un canale per synth |
 | Logic | Compila con `-DPAM_AU_MIDI_FX=ON` e usa lo slot MIDI FX (un solo synth), oppure il drag & drop |
 

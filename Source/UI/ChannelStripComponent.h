@@ -21,12 +21,12 @@ private:
     juce::Colour colour;
 
     juce::ToggleButton onButton;
-    juce::ComboBox styleBox;
+    juce::ComboBox styleBox, midiBox;
     juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" };
     juce::Label stats;
     StepGridComponent grid;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment;
 };
 } // namespace pam

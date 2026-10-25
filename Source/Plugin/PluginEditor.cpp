@@ -121,7 +121,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     addToggle (keyFollowToggle, ParamID::keyFollow, "KEY FOLLOW", "Held MIDI key transposes the sequence (playing the root note = no change). Leave OFF if you only write a long note to start the pattern: with FREE RUN on no note is needed at all.");
     addToggle (freeRunToggle, ParamID::freeRun, "FREE RUN", "Play with the transport even when no key is held");
-    addToggle (mergeToggle, ParamID::mergeOut, "MERGE CH1", "Send all channels on MIDI channel 1 (hosts with a single MIDI destination)");
+    addCombo (outputBox, { "Per channel", "Master (ch 1)" }, ParamID::mergeOut,
+              "Per channel: each matrix channel goes out on its own MIDI channel (OUT 1-16 in every row), "
+              "so channel 1 can drive Serum, channel 2 Spire, ... Master: everything on MIDI channel 1");
+    addCaption (outputBox, "MIDI OUTPUT");
 
     multitrackToggle.setButtonText ("1 FILE");
     multitrackToggle.setTooltip ("Drag a single multitrack MIDI file instead of one file per channel");
@@ -276,7 +279,7 @@ void PluginEditor::resized()
     originalButton.setBounds (row2.removeFromLeft (90).withTrimmedTop (16).reduced (3, 0));
     keyFollowToggle.setBounds (row2.removeFromLeft (110).withTrimmedTop (16));
     freeRunToggle.setBounds (row2.removeFromLeft (100).withTrimmedTop (16));
-    mergeToggle.setBounds (row2.removeFromLeft (110).withTrimmedTop (16));
+    placeWithCaption (outputBox, row2.removeFromLeft (130).reduced (3, 0));
 
     bottom.removeFromTop (6);
     auto row3 = bottom.removeFromTop (34);
