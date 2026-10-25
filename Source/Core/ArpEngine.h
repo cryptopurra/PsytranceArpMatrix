@@ -39,6 +39,8 @@ public:
         double bpm = 142.0;
         bool   hasHostPosition = false;
         bool   allowInternalClock = true; // false inside a DAW: never play while the transport is stopped
+        bool   isLooping = false;         // host cycle / loop markers active
+        double loopStart = 0.0, loopEnd = 0.0;
     };
 
     /** Consumes the incoming MIDI (keys) and replaces it with the generated MIDI. */
@@ -74,6 +76,7 @@ private:
     bool latchArmed = false;
     std::array<Sounding, 128> sounding {};
     int numSounding = 0;
+    int minNoteOnOffset = 0;
 
     double internalPpq = 0.0;
     double lastPpqEnd = -1.0;

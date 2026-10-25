@@ -84,11 +84,16 @@ void ArpEngine::noteOn (juce::MidiBuffer& out, int channel, int note, int veloci
     note = juce::jlimit (0, 127, note);
     channel = juce::jlimit (1, 16, channel);
 
-    // retrigger: close an already sounding identical note first
+    offset = std::max (offset, minNoteOnOffset);
+
+    // retrigger: close an already sounding identical note first, one sample earlier, so the
+    // note-off can never be ordered after the new note-on by the host or the synth
     for (int i = 0; i < numSounding; ++i)
         if (sounding[(size_t) i].channel == channel && sounding[(size_t) i].note == note)
         {
-            out.addEvent (juce::MidiMessage::noteOff (channel, note), offset);
+            if (offset == 0)
+                offset = 1; // blocks always have more than one sample in practice
+            out.addEvent (juce::MidiMessage::noteOff (channel, note), offset - 1);
             sounding[(size_t) i] = sounding[(size_t) --numSounding];
             break;
         }
@@ -369,16 +374,33 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     const double ppqStart = host ? pos.ppq : internalPpq;
     const double ppqEnd = ppqStart + numSamples * ppqPerSample;
 
-    const double stepLenForJump = stepLengthInQuarters (p.division);
+    const double stepLen = stepLengthInQuarters (p.division);
+    const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;
+    const double samplesPerStep = stepLen / ppqPerSample;
+    const bool cycle = host && pos.isLooping && pos.loopEnd > pos.loopStart + stepLen;
+    minNoteOnOffset = 0;
 
     // loop / locate detection. Hosts (Cubase with latency compensation, for example) report
     // block positions with small jitter, so only a real jump counts: going back by more than half
     // a step (cycle / locate) or forward by more than two steps.
     const bool jumped = lastPpqEnd >= 0.0
-        && (ppqStart < lastPpqEnd - stepLenForJump * 0.5 || ppqStart > lastPpqEnd + stepLenForJump * 2.0);
+        && (ppqStart < lastPpqEnd - stepLen * 0.5 || ppqStart > lastPpqEnd + stepLen * 2.0);
+
+    // A cycle wrap (end marker -> start marker) is musically continuous: the notes that are
+    // sounding finish with their own gate exactly as they would inside the loop. Cutting them
+    // here (and re-striking at the same sample) is what made synths like Serum misbehave
+    // after every cycle restart.
+    const bool cycleWrap = jumped && cycle
+        && std::abs (ppqStart - pos.loopStart) < stepLen
+        && std::abs (lastPpqEnd - pos.loopEnd) < stepLen;
+
     if (jumped)
     {
-        allNotesOff (out, 0);
+        if (! cycleWrap)
+        {
+            allNotesOff (out, 0);
+            minNoteOnOffset = numSamples > 1 ? 1 : 0; // never note-off and note-on on the same sample
+        }
         lastTriggeredStep = -1;
         arpCounter.fill (0);
     }
@@ -387,26 +409,41 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     // cannot skip a step (a small backward jitter is covered by lastTriggeredStep)
     const double scanStart = (! jumped && lastPpqEnd >= 0.0) ? juce::jmin (ppqStart, lastPpqEnd) : ppqStart;
 
-    const double stepLen = stepLengthInQuarters (p.division);
-    const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;
-    const double samplesPerStep = stepLen / ppqPerSample;
-
-    const auto firstStep = (juce::int64) std::floor (scanStart / stepLen) - 1;
-    const auto lastStep  = (juce::int64) std::floor (ppqEnd / stepLen);
-
-    for (auto k = std::max<juce::int64> (0, firstStep); k <= lastStep; ++k)
+    auto scan = [&] (double from, double to, double ppqAtSampleZero)
     {
-        const double t = (double) k * stepLen + ((k % 2) == 1 ? swingOffset : 0.0);
-        if (t < scanStart || t >= ppqEnd || k <= lastTriggeredStep)
-            continue;
+        const auto firstStep = (juce::int64) std::floor (from / stepLen) - 1;
+        const auto lastStep  = (juce::int64) std::floor (to / stepLen);
 
-        const int offset = juce::jlimit (0, numSamples - 1, (int) ((t - ppqStart) / ppqPerSample));
-        triggerStep (k, offset, samplesPerStep, pattern, p, out);
-        lastTriggeredStep = k;
+        for (auto k = std::max<juce::int64> (0, firstStep); k <= lastStep; ++k)
+        {
+            const double t = (double) k * stepLen + ((k % 2) == 1 ? swingOffset : 0.0);
+            if (t < from || t >= to || k <= lastTriggeredStep)
+                continue;
+
+            const int offset = juce::jlimit (0, numSamples - 1, (int) ((t - ppqAtSampleZero) / ppqPerSample));
+            triggerStep (k, offset, samplesPerStep, pattern, p, out);
+            lastTriggeredStep = k;
+        }
+    };
+
+    double endOfBlock = ppqEnd;
+    if (cycle && ppqStart < pos.loopEnd && ppqEnd > pos.loopEnd)
+    {
+        // the block crosses the end marker (hosts that do not split blocks at the cycle):
+        // play up to the end marker, then continue from the start marker in the same block
+        scan (scanStart, pos.loopEnd, ppqStart);
+        lastTriggeredStep = -1;
+        const double over = ppqEnd - pos.loopEnd;
+        scan (pos.loopStart, pos.loopStart + over, pos.loopStart - (pos.loopEnd - ppqStart));
+        endOfBlock = pos.loopStart + over;
+    }
+    else
+    {
+        scan (scanStart, ppqEnd, ppqStart);
     }
 
     flushNoteOffs (out, numSamples);
-    lastPpqEnd = ppqEnd;
+    lastPpqEnd = endOfBlock;
     if (internal)
         internalPpq = ppqEnd;
 

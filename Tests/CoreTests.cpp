@@ -1,6 +1,7 @@
 // Headless unit tests for the core engine (no GUI / audio device needed).
 #include <juce_core/juce_core.h>
 #include <iostream>
+#include <map>
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include "../Source/Core/ArpEngine.h"
@@ -468,6 +469,72 @@ public:
             }
             expectEquals (mismatch, 0);
             expectEquals (kf.currentTranspose(), 0);
+        }
+
+        beginTest ("cycle loop (blocks crossing the end marker): seamless, no double notes, no same-sample off/on");
+        {
+            ChannelMatrix cm;
+            cm.setSeed (78);
+            cm.setLength (16);
+            cm.initialiseDefault();
+            cm.setChannelEnabled (1, true);
+            const auto& cp = cm.getPattern();
+            const auto& scale = ScaleLibrary::get()[cp.scaleIndex];
+            const double sr = 44100.0, tempo = 145.0;
+            const double loopStart = 252.0, loopEnd = 284.0;
+
+            for (int variant = 0; variant < 2; ++variant) // 0: host splits blocks at the cycle, 1: it does not
+            {
+                ArpEngine ce;
+                ce.prepare (sr);
+                ArpParams cpar;
+                double q = loopStart;
+                std::map<std::pair<int,int>, bool> on;
+                int doubleOns = 0, sameSample = 0, wrong = 0, notes = 0, strayOffs = 0;
+                const int blk = 256;
+                for (int b = 0; b < 15000; ++b)
+                {
+                    int n = blk;
+                    if (variant == 0 && q + n * tempo / 60.0 / sr > loopEnd)
+                        n = juce::jmax (1, (int) ((loopEnd - q) / (tempo / 60.0 / sr)));
+                    juce::MidiBuffer mb;
+                    ArpEngine::Position pos { true, q, tempo, true, false, true, loopStart, loopEnd };
+                    ce.process (mb, n, pos, cp, cpar);
+
+                    std::map<std::pair<int,int>, int> offAt;
+                    for (const auto meta : mb)
+                    {
+                        const auto m = meta.getMessage();
+                        if (! m.isNoteOnOrOff()) continue;
+                        const auto key = std::make_pair (m.getChannel(), m.getNoteNumber());
+                        if (m.isNoteOn())
+                        {
+                            ++notes;
+                            if (on[key]) ++doubleOns;
+                            if (offAt.count (key) && offAt[key] == meta.samplePosition) ++sameSample;
+                            on[key] = true;
+                            double at = q + meta.samplePosition * tempo / 60.0 / sr;
+                            if (at >= loopEnd - 1.0e-9) at = loopStart + (at - loopEnd);
+                            const int c = m.getChannel() - 1;
+                            const auto& st = cp.channels[(size_t) c].steps[(size_t) (juce::roundToInt (at / 0.25) % 16)];
+                            if (! st.active || m.getNoteNumber() != ScaleLibrary::quantize (st.note, cp.rootNote, scale)) ++wrong;
+                        }
+                        else
+                        {
+                            if (! on[key]) ++strayOffs;
+                            on[key] = false;
+                            offAt[key] = meta.samplePosition;
+                        }
+                    }
+                    q += n * tempo / 60.0 / sr;
+                    if (q >= loopEnd) q = loopStart + (q - loopEnd);
+                }
+                expect (notes > 500);
+                expectEquals (doubleOns, 0);
+                expectEquals (sameSample, 0);
+                expectEquals (wrong, 0);
+                expectEquals (strayOffs, 0);
+            }
         }
 
         beginTest ("internal clock with held keys + arp Up");

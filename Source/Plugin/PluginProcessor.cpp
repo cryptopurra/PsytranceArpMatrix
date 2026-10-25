@@ -204,6 +204,13 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
             {
                 pos.allowInternalClock = true; // host without a musical position: free run on held keys
             }
+            if (info->getIsLooping())
+                if (auto loop = info->getLoopPoints())
+                {
+                    pos.isLooping = true;
+                    pos.loopStart = loop->ppqStart;
+                    pos.loopEnd = loop->ppqEnd;
+                }
             if (auto bpm = info->getBpm())
             {
                 pos.bpm = *bpm;
