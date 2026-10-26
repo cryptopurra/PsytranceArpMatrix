@@ -72,8 +72,15 @@ jobs:
         run: |
           curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
           unzip -q pluginval.zip
-          xvfb-run -a ./pluginval --strictness-level 7 --validate-in-process \
-            "build/PsytranceArpMatrix_artefacts/${{ env.BUILD_TYPE }}/VST3/Psytrance Arp Matrix.vst3"
+          # pluginval's own Linux VST3 run loop sometimes segfaults while shutting down, after every
+          # test has passed: accept a run that printed SUCCESS, retry otherwise
+          for i in 1 2 3; do
+            xvfb-run -a ./pluginval --strictness-level 7 --validate-in-process \
+              "build/PsytranceArpMatrix_artefacts/${{ env.BUILD_TYPE }}/VST3/Psytrance Arp Matrix.vst3" 2>&1 | tee pv.log || true
+            if grep -q "^SUCCESS" pv.log && ! grep -q "FAILED" pv.log; then exit 0; fi
+            echo "pluginval attempt $i did not succeed"
+          done
+          exit 1
 
       - name: Package
         shell: bash
