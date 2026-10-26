@@ -500,10 +500,11 @@ void PluginEditor::openRollWindow (int c)
         w->toFront (true);
         return;
     }
-    w = std::make_unique<PianoRollWindow> (proc, c, kChannelColours[(size_t) c], [this, c]
+    juce::Component::SafePointer<PluginEditor> self (this);
+    w = std::make_unique<PianoRollWindow> (proc, c, kChannelColours[(size_t) c], [self, c]
     {
         // closing from the window's own callback: delete it afterwards
-        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<PluginEditor> (this), c]
+        juce::MessageManager::callAsync ([safe = self, c]
         {
             if (safe != nullptr)
                 safe->rollWindows[(size_t) c].reset();
