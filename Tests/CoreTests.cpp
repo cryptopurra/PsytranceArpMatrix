@@ -507,6 +507,52 @@ public:
             expectEquals (mismatches, 0);
         }
 
+        beginTest ("jittery host positions: notes still land exactly on the 16th grid");
+        {
+            // rolling bass on every 16th; the host reports each block start with +-2 ms of jitter
+            ChannelMatrix gm;
+            gm.setSeed (5);
+            gm.setLength (16);
+            gm.initialiseDefault();
+            Pattern gp = gm.getPattern();
+            for (auto& st : gp.channels[0].steps)
+            {
+                st.active = true;
+                st.gate = 0.5f;
+            }
+            ArpEngine g;
+            const double sr = 48000.0, tempo = 145.0;
+            g.prepare (sr);
+            ArpParams ap;
+            double q = 0.0;
+            juce::Random r (11);
+            double worst = 0.0;
+            int notes = 0;
+            const double ppqPerSample = tempo / 60.0 / sr;
+            for (int blockNo = 0; blockNo < 4000; ++blockNo)
+            {
+                const int blk = 256;
+                juce::MidiBuffer b;
+                const double reported = q + (r.nextFloat() - 0.5) * 2.0 * 0.002 * tempo / 60.0; // +-2 ms
+                g.process (b, blk, { true, reported, tempo, true, false }, gp, ap);
+                for (const auto meta : b)
+                {
+                    const auto m = meta.getMessage();
+                    if (! m.isNoteOn() || m.getChannel() != 1) continue;
+                    const double at = q + meta.samplePosition * ppqPerSample;   // true timeline position
+                    const double err = std::abs (at - 0.25 * juce::roundToInt (at / 0.25)) / ppqPerSample;
+                    if (blockNo > 200) // after the clock has settled
+                    {
+                        worst = juce::jmax (worst, err);
+                        ++notes;
+                    }
+                }
+                q += blk * ppqPerSample;
+            }
+            expect (notes > 150, "notes " + juce::String (notes));
+            expect (worst <= 12.0, "worst error " + juce::String (worst, 1) + " samples");
+        }
+
         beginTest ("a held non-root key does not change the pattern unless Key Follow is on");
         {
             ArpEngine kf;

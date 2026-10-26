@@ -86,6 +86,7 @@ private:
 
     double internalPpq = 0.0;
     double lastPpqEnd = -1.0;
+    int smoothBlocks = 0;            // blocks since the continuous clock was (re)synced
     juce::int64 lastTriggeredStep = -1;
     bool running = false;
     bool lastRunWasHost = false;

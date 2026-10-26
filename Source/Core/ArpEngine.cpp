@@ -428,22 +428,47 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     running = true;
     const double bpm = (pos.hasHostPosition && pos.bpm > 0.0) ? pos.bpm : (double) p.internalBpm;
     const double ppqPerSample = bpm / 60.0 / sampleRate;
-    const double ppqStart = host ? pos.ppq : internalPpq;
-    const double ppqEnd = ppqStart + numSamples * ppqPerSample;
-
-    sendGlideControllers (out, pattern, p);
-
+    const double rawStart = host ? pos.ppq : internalPpq;
     const double stepLen = stepLengthInQuarters (p.division);
-    const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;
-    const double samplesPerStep = stepLen / ppqPerSample;
-    const bool cycle = host && pos.isLooping && pos.loopEnd > pos.loopStart + stepLen;
-    minNoteOnOffset = 0;
 
     // loop / locate detection. Hosts (Cubase with latency compensation, for example) report
     // block positions with small jitter, so only a real jump counts: going back by more than half
     // a step (cycle / locate) or forward by more than two steps.
     const bool jumped = lastPpqEnd >= 0.0
-        && (ppqStart < lastPpqEnd - stepLen * 0.5 || ppqStart > lastPpqEnd + stepLen * 2.0);
+        && (rawStart < lastPpqEnd - stepLen * 0.5 || rawStart > lastPpqEnd + stepLen * 2.0);
+
+    // Continuous clock: during normal playback the block starts where the previous one ended and
+    // only follows the host's reported position slowly. Placing notes from the jittery reported
+    // position made a rolling bass drift a few ms back and forth against the kick.
+    // The correction is a running mean (fast right after start / locate, then very slow), so the
+    // clock settles on the host's average position and its block-to-block jitter is filtered out.
+    double ppqStart = rawStart;
+    if (host && ! jumped && lastPpqEnd >= 0.0)
+    {
+        const double drift = rawStart - lastPpqEnd;
+        if (std::abs (drift) < stepLen * 0.25)
+        {
+            const double gain = std::max (0.004, 1.0 / (double) (smoothBlocks + 2));
+            ppqStart = lastPpqEnd + drift * gain;
+            ++smoothBlocks;
+        }
+        else
+        {
+            smoothBlocks = 0;
+        }
+    }
+    else
+    {
+        smoothBlocks = 0;
+    }
+    const double ppqEnd = ppqStart + numSamples * ppqPerSample;
+
+    sendGlideControllers (out, pattern, p);
+
+    const double swingOffset = juce::jlimit (0.0f, 1.0f, p.swing) * stepLen / 3.0;
+    const double samplesPerStep = stepLen / ppqPerSample;
+    const bool cycle = host && pos.isLooping && pos.loopEnd > pos.loopStart + stepLen;
+    minNoteOnOffset = 0;
 
     // A cycle wrap (end marker -> start marker) is musically continuous: the notes that are
     // sounding finish with their own gate exactly as they would inside the loop. Cutting them
