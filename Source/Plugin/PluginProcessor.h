@@ -136,7 +136,16 @@ public:
         int sizeIndex = 2;                                  // index into the SIZE menu (M)
         int selectedChannel = 0;                            // channel the bar locks apply to
         int varTarget = 0;                                  // NEW VARIATION target: 0 = all active, 1..4 = channel
+        int gridFirst = 0, gridCount = 16;                  // step view: first visible step, visible steps (zoom)
+        std::array<int, kNumChannels> varStyle { 0, 0, 0, 0 };              // per-channel VARIATION STYLE
+        std::array<float, kNumChannels> varAmount { 65.0f, 65.0f, 65.0f, 65.0f }; // per-channel VARIATION amount
     } ui;
+
+    /** Selects a channel: the VARIATION STYLE / amount controls switch to that channel's own settings
+        (each channel remembers its own; untouched channels show the defaults), VAR ON follows. */
+    void selectChannel (int c);
+    /** Variation settings of a channel (the live controls for the selected one). */
+    std::pair<VariationStyle, float> variationFor (int c) const;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

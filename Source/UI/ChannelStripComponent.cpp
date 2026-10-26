@@ -83,8 +83,7 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
     varButton.setTooltip ("Apply the selected melody variation to this channel");
     varButton.onClick = [this]
     {
-        const auto style = (VariationStyle) juce::roundToInt (proc.getState().getRawParameterValue (ParamID::varStyle)->load());
-        const float amount = proc.getState().getRawParameterValue (ParamID::varAmount)->load() / 100.0f;
+        const auto [style, amount] = proc.variationFor (channel); // this channel's own variation settings
         proc.editMatrix ([=, ch = channel] (ChannelMatrix& m) { m.applyVariation (ch, style, amount); });
     };
 
@@ -123,8 +122,14 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
         updateViewButtons();
         roll.resized();
     };
+    popButton.setButtonText (juce::String::fromUTF8 ("\xe2\x86\x97"));   // north-east arrow
+    popButton.setTooltip ("Open this channel's piano roll in a separate window");
+    popButton.onClick = [this] { if (onPopOut) onPopOut(); };
+    grid.onViewChanged = [this] { if (onViewChanged) onViewChanged(); };
+    roll.onViewChanged = [this] { if (onViewChanged) onViewChanged(); };
     addAndMakeVisible (viewButton);
     addAndMakeVisible (laneButton);
+    addAndMakeVisible (popButton);
     updateViewButtons();
     addMouseListener (this, true); // clicks anywhere in the row select the channel
     refresh();
@@ -134,10 +139,17 @@ void ChannelStripComponent::mouseDown (const juce::MouseEvent&)
 {
     if (proc.ui.selectedChannel != channel)
     {
-        proc.ui.selectedChannel = channel;
+        proc.selectChannel (channel);
         if (onSelected)
             onSelected();
     }
+}
+
+juce::Range<double> ChannelStripComponent::visibleSteps() const
+{
+    if (isPianoRoll() && ! compact)
+        return roll.getVisibleSteps();
+    return { (double) proc.ui.gridFirst, (double) (proc.ui.gridFirst + proc.ui.gridCount) };
 }
 
 void ChannelStripComponent::updateViewButtons()
@@ -150,7 +162,7 @@ void ChannelStripComponent::updateViewButtons()
     roll.setLane ((PianoRollComponent::Lane) l);
     grid.setVisible (! pr && ! compact);
     roll.setVisible (pr && ! compact);
-    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &laneButton, &glideSlider, &roleBox })
+    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &laneButton, &popButton, &glideSlider, &roleBox })
         b->setVisible (! compact);
 }
 
@@ -230,6 +242,8 @@ void ChannelStripComponent::resized()
     onButton.setBounds (row1.removeFromLeft (66));
     muteButton.setBounds (row1.removeFromLeft (28).reduced (2, 1));
     row1.removeFromLeft (2);
+    popButton.setBounds (row1.removeFromRight (26).reduced (1, 1));
+    row1.removeFromRight (2);
     styleBox.setBounds (row1);
 
     left.removeFromTop (4);

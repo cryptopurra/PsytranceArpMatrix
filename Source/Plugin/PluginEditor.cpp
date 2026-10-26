@@ -114,9 +114,10 @@ PluginEditor::PluginEditor (PluginProcessor& p)
             setStatus ((lock ? "Locked bar " : "Unlocked bar ") + juce::String (i + 1) + " of channel " + juce::String (c + 1)
                        + (lock ? " (kept by Roll / Generate)" : ""));
         };
-        pageButtons[(size_t) i].setTooltip ("Click: show these 16 steps.  Double-click: lock / unlock this bar for the "
-                                             "selected channel (Roll / Generate keep it).  Right-click: copy / paste / "
-                                             "mute / clear / lock menu.");
+        pageButtons[(size_t) i].setTooltip ("Click: show these 16 steps (the strip under the label shows the visible part: "
+                                             "Ctrl + wheel on the steps or piano roll zooms).  Double-click: lock / unlock "
+                                             "this bar for the selected channel (Roll / Generate keep it).  Right-click: "
+                                             "copy / paste / mute / clear / lock menu.");
         content.addAndMakeVisible (pageButtons[(size_t) i]);
     }
 
@@ -129,7 +130,14 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     {
         strips[(size_t) c] = std::make_unique<ChannelStripComponent> (proc, c, kChannelColours[(size_t) c]);
         strips[(size_t) c]->onLayoutChanged = [this] { layoutContent(); };
-        strips[(size_t) c]->onSelected = [this] { updatePageButtons(); for (auto& s : strips) s->repaint(); };
+        strips[(size_t) c]->onSelected = [this]
+        {
+            varTargetBox.setSelectedItemIndex (proc.ui.varTarget, juce::dontSendNotification);
+            updatePageButtons();
+            for (auto& s : strips) s->repaint();
+        };
+        strips[(size_t) c]->onViewChanged = [this] { viewChanged(); };
+        strips[(size_t) c]->onPopOut = [this, c] { openRollWindow (c); };
         content.addAndMakeVisible (*strips[(size_t) c]);
     }
 
@@ -216,7 +224,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     proc.onMatrixChanged = [this] { refreshAll(); };
 
-    setPage (0);
+    StepGridComponent::clampView (proc.ui);   // keeps the saved zoom / scroll
+    viewChanged();
     setResizable (true, true);
     sizeBox.addItemList (sizeNames(), 1);
     sizeBox.setScrollWheelEnabled (true);
@@ -246,6 +255,8 @@ PluginEditor::~PluginEditor()
 {
     proc.onMatrixChanged = nullptr;
     stopTimer();
+    for (auto& w : rollWindows)
+        w.reset();
     setLookAndFeel (nullptr);
 }
 
@@ -463,9 +474,42 @@ void PluginEditor::layoutContent()
 void PluginEditor::setPage (int p)
 {
     page = p;
-    updatePageButtons();
+    // step grids: keep the zoom, jump to the bar; piano rolls (also the separate windows) scroll there
+    auto& ui = proc.ui;
+    ui.gridFirst = juce::jlimit (0, kMaxSteps - ui.gridCount, p * 16);
     for (auto& s : strips)
-        s->setPage (p);
+        s->showStep (p * 16);
+    for (auto& w : rollWindows)
+        if (w != nullptr)
+            w->getRoll().showStep (p * 16);
+    viewChanged();
+}
+
+void PluginEditor::viewChanged()
+{
+    for (auto& s : strips)
+        s->repaintViews();
+    updatePageButtons();
+}
+
+void PluginEditor::openRollWindow (int c)
+{
+    auto& w = rollWindows[(size_t) c];
+    if (w != nullptr)
+    {
+        w->toFront (true);
+        return;
+    }
+    w = std::make_unique<PianoRollWindow> (proc, c, kChannelColours[(size_t) c], [this, c]
+    {
+        // closing from the window's own callback: delete it afterwards
+        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<PluginEditor> (this), c]
+        {
+            if (safe != nullptr)
+                safe->rollWindows[(size_t) c].reset();
+        });
+    });
+    w->getRoll().setLane ((PianoRollComponent::Lane) proc.ui.lane[(size_t) c]);
 }
 
 void PluginEditor::showBarMenu (int bar)
@@ -542,6 +586,7 @@ void PluginEditor::showBarMenu (int bar)
 void PluginEditor::updatePageButtons()
 {
     const int c = proc.ui.selectedChannel;
+    const auto vis = strips[(size_t) juce::jlimit (0, kNumChannels - 1, c)]->visibleSteps();
     const char* names[] = { "1-16", "17-32", "33-48", "49-64" };
     for (int i = 0; i < 4; ++i)
     {
@@ -551,12 +596,24 @@ void PluginEditor::updatePageButtons()
         b.setButtonText ((locked ? juce::String::fromUTF8 ("\xe2\x96\xa0 ") : juce::String())
                          + (muted ? "M " : "") + names[i]);
         b.setColour (juce::TextButton::textColourOffId, muted ? juce::Colours::white.withAlpha (0.4f) : juce::Colours::white);
-        auto col = i == page ? kAccent.darker (0.4f) : juce::Colour (0xff15304a);
+        const double b0 = i * 16.0, b1 = b0 + 16.0;
+        const double from = juce::jmax (b0, vis.getStart()), to = juce::jmin (b1, vis.getEnd());
+        const bool shown = to > from + 0.01;
+        b.viewFrom = shown ? (float) ((from - b0) / 16.0) : 0.0f;
+        b.viewTo   = shown ? (float) ((to - b0) / 16.0) : 0.0f;
+        b.viewColour = kChannelColours[(size_t) c];
+        b.repaint();
+        auto col = shown ? kAccent.darker (0.4f).interpolatedWith (juce::Colour (0xff15304a), (float) (1.0 - (to - from) / 16.0) * 0.6f)
+                         : juce::Colour (0xff15304a);
         if (locked)
             col = col.interpolatedWith (juce::Colour (0xffff9d3b), 0.6f);
         b.setColour (juce::TextButton::buttonColourId, col);
     }
-    pagesCaption.setText ("BARS  CH " + juce::String (c + 1) + "  (double-click = lock, right-click = menu)", juce::dontSendNotification);
+    const int s0 = juce::jmax (0, (int) std::floor (vis.getStart() + 0.01));
+    const int s1 = juce::jmin (kMaxSteps, (int) std::ceil (vis.getEnd() - 0.01));
+    const int zoom = juce::roundToInt (1600.0 / juce::jmax (1.0, vis.getLength()));
+    pagesCaption.setText ("CH " + juce::String (c + 1) + "  VIEW " + juce::String (s0 + 1) + "-" + juce::String (s1)
+                          + "  ZOOM " + juce::String (zoom) + "%", juce::dontSendNotification);
 }
 
 void PluginEditor::refreshAll()
@@ -570,7 +627,7 @@ void PluginEditor::refreshAll()
     for (int i = 0; i < 4; ++i)
         pageButtons[(size_t) i].setAlpha (i * 16 < len ? 1.0f : 0.55f); // still clickable: paste can extend the length
     updatePageButtons();
-    if (page * 16 >= len)
+    if (proc.ui.gridFirst >= juce::jmax (16, len))
         setPage (0);
 
     int mask = 0;
@@ -589,6 +646,22 @@ void PluginEditor::timerCallback()
     redoButton.setEnabled (proc.canRedo());
     for (auto& s : strips)
         s->refresh();
+    for (int c = 0; c < kNumChannels; ++c)
+        if (auto& w = rollWindows[(size_t) c]; w != nullptr)
+        {
+            w->getRoll().setLane ((PianoRollComponent::Lane) proc.ui.lane[(size_t) c]);
+            w->getRoll().refresh();
+        }
+    {
+        // the piano roll view moves while the pattern plays / is edited: keep the bar strip in sync
+        static_assert (kNumChannels > 0);
+        const auto vis = strips[(size_t) juce::jlimit (0, kNumChannels - 1, proc.ui.selectedChannel)]->visibleSteps();
+        if (vis != lastVisible)
+        {
+            lastVisible = vis;
+            updatePageButtons();
+        }
+    }
 
     auto k = proc.detectedKey();
     auto imp = proc.lastImportKey();

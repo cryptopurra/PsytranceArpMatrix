@@ -461,12 +461,43 @@ void PluginProcessor::resetToSingleArp()
     currentPresetName = "Init";
 }
 
+std::pair<VariationStyle, float> PluginProcessor::variationFor (int c) const
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    if (c == ui.selectedChannel)
+        return { (VariationStyle) choiceIndex (apvts, ParamID::varStyle), value (apvts, ParamID::varAmount) / 100.0f };
+    return { (VariationStyle) ui.varStyle[(size_t) c], ui.varAmount[(size_t) c] / 100.0f };
+}
+
+void PluginProcessor::selectChannel (int c)
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    const int prev = juce::jlimit (0, kNumChannels - 1, ui.selectedChannel);
+    if (c == prev)
+        return;
+
+    // remember the controls for the channel we leave, show the settings of the new one
+    ui.varStyle[(size_t) prev] = choiceIndex (apvts, ParamID::varStyle);
+    ui.varAmount[(size_t) prev] = value (apvts, ParamID::varAmount);
+    ui.selectedChannel = c;
+    setParam (apvts, ParamID::varStyle, (float) ui.varStyle[(size_t) c]);
+    setParam (apvts, ParamID::varAmount, ui.varAmount[(size_t) c]);
+    if (ui.varTarget > 0)
+        ui.varTarget = c + 1; // VAR ON a single channel follows the selection
+}
+
 void PluginProcessor::newVariation()
 {
-    const auto style = (VariationStyle) choiceIndex (apvts, ParamID::varStyle);
-    const float amount = value (apvts, ParamID::varAmount) / 100.0f;
-    const int target = ui.varTarget - 1; // -1 = every active channel
-    editMatrix ([=] (ChannelMatrix& m) { m.applyVariation (target, style, amount); });
+    const int target = ui.varTarget - 1; // -1 = every active channel, each with its own settings
+    std::array<std::pair<VariationStyle, float>, kNumChannels> settings;
+    for (int c = 0; c < kNumChannels; ++c)
+        settings[(size_t) c] = variationFor (c);
+    editMatrix ([=] (ChannelMatrix& m)
+    {
+        for (int c = 0; c < kNumChannels; ++c)
+            if ((target < 0 && m.isChannelEnabled (c)) || c == target)
+                m.applyVariation (c, settings[(size_t) c].first, settings[(size_t) c].second);
+    });
 }
 
 void PluginProcessor::restoreOriginal()
@@ -634,6 +665,14 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& dest)
     state.setProperty ("uiViews", views, nullptr);
     state.setProperty ("uiLanes", lanes, nullptr);
     state.setProperty ("uiSizeV2", ui.sizeIndex, nullptr);
+    state.setProperty ("uiSelected", ui.selectedChannel, nullptr);
+    state.setProperty ("uiGrid", juce::String (ui.gridFirst) + "," + juce::String (ui.gridCount), nullptr);
+    {
+        juce::StringArray vs;
+        for (int c = 0; c < kNumChannels; ++c)
+            vs.add (juce::String (ui.varStyle[(size_t) c]) + ":" + juce::String (juce::roundToInt (ui.varAmount[(size_t) c])));
+        state.setProperty ("uiVariations", vs.joinIntoString (","), nullptr);
+    }
     juce::String locks;
     for (int c = 0; c < kNumChannels; ++c)
         for (int b = 0; b < kMaxSteps / 16; ++b)
@@ -671,6 +710,22 @@ void PluginProcessor::setStateInformation (const void* data, int size)
             ui.lane[(size_t) c] = juce::jlimit (0, 2, lanes.substring (c, c + 1).getIntValue());
         }
         ui.sizeIndex = juce::jlimit (0, 5, (int) tree.getProperty ("uiSizeV2", 2));
+        ui.selectedChannel = juce::jlimit (0, kNumChannels - 1, (int) tree.getProperty ("uiSelected", 0));
+        const auto grid = juce::StringArray::fromTokens (tree.getProperty ("uiGrid", "0,16").toString(), ",", "");
+        if (grid.size() == 2)
+        {
+            ui.gridFirst = grid[0].getIntValue();
+            ui.gridCount = grid[1].getIntValue();
+        }
+        ui.gridCount = juce::jlimit (4, kMaxSteps, ui.gridCount);
+        ui.gridFirst = juce::jlimit (0, kMaxSteps - ui.gridCount, ui.gridFirst);
+        const auto vs = juce::StringArray::fromTokens (tree.getProperty ("uiVariations", "").toString(), ",", "");
+        for (int c = 0; c < kNumChannels && c < vs.size(); ++c)
+        {
+            ui.varStyle[(size_t) c] = juce::jlimit (0, PatternSerializer::variationStyleNames().size() - 1,
+                                                    vs[c].upToFirstOccurrenceOf (":", false, false).getIntValue());
+            ui.varAmount[(size_t) c] = juce::jlimit (0.0f, 100.0f, vs[c].fromFirstOccurrenceOf (":", false, false).getFloatValue());
+        }
     }
 
     Pattern p;

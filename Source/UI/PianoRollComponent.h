@@ -16,6 +16,7 @@ namespace pam
             drag right edge           change length (gate) of all selected notes
             Ctrl + click note         add / remove the note from the selection
             Ctrl + drag on empty area rectangle selection
+            press and hold on empty   rectangle selection (hold ~0.4 s still, then drag)
             double-click / alt-click  delete note
             right-click note          menu (accent, slide, chord, octave, select all, delete)
             drag the lane border      resize the lane (double-click: default size)
@@ -24,15 +25,25 @@ namespace pam
             Ctrl + wheel              horizontal zoom
             Shift + wheel             vertical zoom
     Keys (selected notes):            arrows left/right = move one step (Shift: one bar),
-                                      up/down = one semitone (Shift: one octave), Delete = delete
+                                      up/down = one semitone, or one scale degree with LOCK on
+                                      (Shift: one octave), Delete = delete. The moved notes are played.
+    Moving notes onto other notes swaps them (the other notes take the freed steps).
     Click on the keyboard strip or on a note: the note is played on the channel's synth.
     Lane (bottom, can be hidden):     drag to draw velocity or gate per step */
-class PianoRollComponent final : public juce::Component
+class PianoRollComponent final : public juce::Component,
+                                 private juce::Timer
 {
 public:
     enum class Lane { None = 0, Velocity, Gate };
 
     PianoRollComponent (PluginProcessor& p, int channelIndex);
+    ~PianoRollComponent() override;
+
+    /** Visible time range in steps (for the bar buttons). */
+    juce::Range<double> getVisibleSteps() const;
+    /** Scrolls so that the given step is at the left edge. */
+    void showStep (int step);
+    std::function<void()> onViewChanged;   // zoom / scroll changed
 
     void setAccentColour (juce::Colour c)  { colour = c; repaint(); }
     void setLane (Lane l)                  { lane = l; repaint(); }
@@ -64,7 +75,16 @@ private:
     void clampView();
     void editStep (int step, const std::function<void (Step&)>& fn);
     void applySteps (const std::array<Step, kMaxSteps>& target);
-    void moveSelection (int dStep, int dNote);
+    void moveSelection (int dStep, int dNote, bool byScaleDegree = false);
+    void ensureVisible (int step, int note);
+    void viewChanged();
+    void timerCallback() override;          // press-and-hold: switch to rectangle selection
+    void playNotes (const std::vector<int>& notes);  // short preview after an arrow move
+    void stopPlayedNotes();
+    std::vector<int> playedNotes;
+    int playToken = 0;
+    bool createMoved = false;
+    Step preCreateStep {};
     void resizeSelection (float dGate);
     void deleteSelection();
     bool isOnLaneBorder (juce::Point<int> p) const;
@@ -98,5 +118,37 @@ private:
     void stopPreview();
     juce::Point<float> selectStart;
     juce::Rectangle<float> selectRect;
+};
+
+//==============================================================================
+/** The piano roll of one channel in its own resizable window (like "open in a separate window"
+    in a DAW editor). It edits the same pattern as the row in the plugin. */
+class PianoRollWindow final : public juce::DocumentWindow
+{
+public:
+    PianoRollWindow (PluginProcessor& p, int channelIndex, juce::Colour colour, std::function<void()> closeCallback)
+        : juce::DocumentWindow ("Psytrance Arp Matrix  -  CH " + juce::String (channelIndex + 1) + "  piano roll",
+                                juce::Colour (0xff08111b), juce::DocumentWindow::closeButton),
+          onClose (std::move (closeCallback))
+    {
+        auto* r = new PianoRollComponent (p, channelIndex);
+        r->setAccentColour (colour);
+        r->setSize (980, 460);
+        roll = r;
+        setContentOwned (r, true);
+        setUsingNativeTitleBar (true);
+        setResizable (true, false);
+        setResizeLimits (420, 220, 4000, 2500);
+        setAlwaysOnTop (true);  // stays above the host window while the plugin is in use
+        centreWithSize (getWidth(), getHeight());
+        setVisible (true);
+    }
+
+    PianoRollComponent& getRoll() noexcept { return *roll; }
+    void closeButtonPressed() override     { if (onClose) onClose(); }
+
+private:
+    PianoRollComponent* roll = nullptr;   // owned by the window (content component)
+    std::function<void()> onClose;
 };
 } // namespace pam

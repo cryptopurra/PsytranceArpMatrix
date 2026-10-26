@@ -5,7 +5,8 @@
 
 namespace pam
 {
-/** 16-step view of one matrix channel (one page of up to 4).
+/** Step view of one matrix channel. Shows proc.ui.gridCount steps starting at proc.ui.gridFirst
+    (shared by all rows, so the channels stay aligned): 16 = one bar, zoom 4 ... 64 steps.
 
     Mouse:  click            toggle step on/off
             drag up/down     move note by scale degrees (moving left/right paints the same note
@@ -13,6 +14,8 @@ namespace pam
             shift + drag     velocity
             alt/option-click accent
             mouse wheel      note up/down by scale degree (shift + wheel: velocity)
+            Ctrl + wheel     zoom (4 / 8 / 16 / 32 / 64 steps visible)
+            horizontal wheel, Alt + wheel or hold the wheel and drag: scroll
             double-click the note name: type a note (e.g. F#3, Gb2, A4 or a MIDI number)
             right-click      menu (accent, slide, chord size, gate, octave, clear) */
 class StepGridComponent final : public juce::Component
@@ -20,7 +23,10 @@ class StepGridComponent final : public juce::Component
 public:
     StepGridComponent (PluginProcessor& p, int channelIndex);
 
-    void setPage (int newPage)               { page = juce::jlimit (0, kMaxSteps / 16 - 1, newPage); repaint(); }
+    std::function<void()> onViewChanged;   // zoom / scroll changed (all rows + bar buttons follow)
+    /** Zoom levels: visible steps. */
+    static int zoomLevel (int current, int direction);
+    static void clampView (PluginProcessor::UiState& ui);
     void setAccentColour (juce::Colour c)    { colour = c; repaint(); }
     void refresh()                           { repaint(); }
 
@@ -43,7 +49,11 @@ private:
 
     PluginProcessor& proc;
     int channel = 0;
-    int page = 0;
+    int first() const noexcept { return proc.ui.gridFirst; }
+    int count() const noexcept { return juce::jmax (1, proc.ui.gridCount); }
+    void scrollBy (int steps);
+    bool panning = false;
+    int panStartFirst = 0;
     juce::Colour colour { 0xff35e0ff };
 
     int dragStep = -1, dragStartNote = 60, dragStartVel = 100;

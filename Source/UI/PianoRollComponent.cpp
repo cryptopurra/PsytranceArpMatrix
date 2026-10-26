@@ -20,6 +20,91 @@ PianoRollComponent::PianoRollComponent (PluginProcessor& p, int c) : proc (p), c
     centreOnNotes();
 }
 
+PianoRollComponent::~PianoRollComponent()
+{
+    stopTimer();
+    stopPlayedNotes();
+    stopPreview();
+}
+
+juce::Range<double> PianoRollComponent::getVisibleSteps() const
+{
+    const auto area = noteArea();
+    return { scrollStep, scrollStep + (double) juce::jmax (1, area.getWidth()) / pxPerStep };
+}
+
+void PianoRollComponent::showStep (int step)
+{
+    scrollStep = (double) step;
+    clampView();
+    repaint();
+}
+
+void PianoRollComponent::viewChanged()
+{
+    if (onViewChanged)
+        onViewChanged();
+}
+
+void PianoRollComponent::ensureVisible (int step, int note)
+{
+    const auto vis = getVisibleSteps();
+    if ((double) step < vis.getStart())
+        scrollStep = (double) step;
+    else if ((double) step + 1.0 > vis.getEnd())
+        scrollStep = (double) step + 1.0 - vis.getLength();
+
+    const auto area = noteArea();
+    const float rows = (float) area.getHeight() / rowHeight;
+    if ((float) note + 1.0f > topNote)
+        topNote = (float) note + 1.0f;
+    else if ((float) note < topNote - rows + 1.0f)
+        topNote = (float) note + rows - 1.0f;
+    clampView();
+    viewChanged();
+}
+
+void PianoRollComponent::playNotes (const std::vector<int>& notes)
+{
+    stopPlayedNotes();
+    for (auto n : notes)
+    {
+        proc.previewNote (channel, n, 100);
+        playedNotes.push_back (n);
+    }
+    const int token = ++playToken;
+    juce::Timer::callAfterDelay (220, [safe = juce::Component::SafePointer<PianoRollComponent> (this), token]
+    {
+        if (safe != nullptr && safe->playToken == token)
+            safe->stopPlayedNotes();
+    });
+}
+
+void PianoRollComponent::stopPlayedNotes()
+{
+    for (auto n : playedNotes)
+        proc.previewNote (channel, n, 0);
+    playedNotes.clear();
+}
+
+void PianoRollComponent::timerCallback()
+{
+    stopTimer();
+    if (drag != Drag::Create || createMoved || dragStep < 0)
+        return;
+
+    // held still on an empty spot: the click becomes a rectangle selection (the note is removed again)
+    auto target = channelData().steps;
+    target[(size_t) dragStep] = preCreateStep;
+    applySteps (target);
+    selected.reset();
+    drag = Drag::Select;
+    selectStart = getMouseXYRelative().toFloat();
+    selectRect = { selectStart, selectStart };
+    setMouseCursor (juce::MouseCursor::CrosshairCursor);
+    repaint();
+}
+
 const ChannelPattern& PianoRollComponent::channelData() const
 {
     return proc.getMatrix().getPattern().channels[(size_t) channel];
@@ -141,6 +226,7 @@ void PianoRollComponent::resized()
     if (area.getHeight() > 0)
         rowHeight = juce::jlimit (4.0f, 14.0f, (float) area.getHeight() / (float) (hi - lo + 5));
     centreOnNotes();
+    viewChanged();
 }
 
 //==============================================================================
@@ -322,10 +408,11 @@ void PianoRollComponent::applySteps (const std::array<Step, kMaxSteps>& target)
     repaint();
 }
 
-void PianoRollComponent::moveSelection (int dStep, int dNote)
+void PianoRollComponent::moveSelection (int dStep, int dNote, bool byScaleDegree)
 {
     // rebuilt from the snapshot taken at mouse-down: the selected notes land dStep steps later
-    // and dNote semitones higher, overwriting whatever is there
+    // and dNote semitones (or scale degrees) higher. Notes that are in the way are not deleted:
+    // they move into the steps the selection left free (the selection "jumps over" them).
     const int len = channelData().length;
     int minS = kMaxSteps, maxS = -1;
     for (int s = 0; s < len; ++s)
@@ -334,20 +421,50 @@ void PianoRollComponent::moveSelection (int dStep, int dNote)
         return;
     dStep = juce::jlimit (-minS, len - 1 - maxS, dStep);
 
+    const auto& p = proc.getMatrix().getPattern();
+    const auto& scale = ScaleLibrary::get()[p.scaleIndex];
+    auto shift = [&] (int n)
+    {
+        if (dNote == 0)
+            return n;
+        if (byScaleDegree)
+        {
+            const int base = 12 * (n / 12);
+            return juce::jlimit (0, 127, ScaleLibrary::degreeToNote (
+                       ScaleLibrary::noteToDegree (n, p.rootNote, scale, base) + dNote, p.rootNote, scale, base));
+        }
+        return juce::jlimit (0, 127, n + dNote);
+    };
+
+    std::bitset<kMaxSteps> newSel;
+    for (int s = 0; s < len; ++s)
+        if (dragSelection[(size_t) s])
+            newSel.set ((size_t) (s + dStep));
+
+    std::vector<int> displaced, freed;
+    for (int s = 0; s < len; ++s)
+    {
+        if (newSel[(size_t) s] && ! dragSelection[(size_t) s] && dragOrigin[(size_t) s].active)
+            displaced.push_back (s);
+        if (dragSelection[(size_t) s] && ! newSel[(size_t) s])
+            freed.push_back (s);
+    }
+
     auto target = dragOrigin;
     for (int s = 0; s < len; ++s)
         if (dragSelection[(size_t) s])
             target[(size_t) s].active = false;
 
-    std::bitset<kMaxSteps> newSel;
+    for (size_t i = 0; i < displaced.size() && i < freed.size(); ++i)
+        target[(size_t) freed[i]] = dragOrigin[(size_t) displaced[i]];
+
     for (int s = 0; s < len; ++s)
         if (dragSelection[(size_t) s])
         {
             auto st = dragOrigin[(size_t) s];
-            st.note = (int8_t) juce::jlimit (0, 127, st.note + dNote);
+            st.note = (int8_t) shift (st.note);
             st.active = true;
             target[(size_t) (s + dStep)] = st;
-            newSel.set ((size_t) (s + dStep));
         }
 
     selected = newSel;
@@ -432,8 +549,28 @@ bool PianoRollComponent::keyPressed (const juce::KeyPress& key)
     proc.beginGesture();
     dragOrigin = channelData().steps;
     dragSelection = selected;
-    moveSelection (dStep, dNote);
+    // with LOCK on a single semitone would be quantized back to the same note: move by scale degree
+    const bool byDegree = proc.getMatrix().isLocked() && std::abs (dNote) == 1;
+    moveSelection (dStep, dNote, byDegree);
     proc.endGesture();
+
+    // play the moved notes and keep them in view
+    std::vector<int> notes;
+    int firstStep = -1;
+    const auto& ch = channelData();
+    for (int s = 0; s < ch.length && notes.size() < 4; ++s)
+        if (selected[(size_t) s] && ch.steps[(size_t) s].active)
+        {
+            if (firstStep < 0)
+                firstStep = s;
+            const int n = ch.steps[(size_t) s].note;
+            if (std::find (notes.begin(), notes.end(), n) == notes.end())
+                notes.push_back (n);
+        }
+    playNotes (notes);
+    if (firstStep >= 0)
+        ensureVisible (firstStep, ch.steps[(size_t) firstStep].note);
+    repaint();
     return true;
 }
 
@@ -545,6 +682,9 @@ void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
 
     const int note = yToNote (e.position.y);
     const bool wasActive = channelData().steps[(size_t) s].active;
+    preCreateStep = channelData().steps[(size_t) s];
+    createMoved = false;
+    startTimer (400); // held still: becomes a rectangle selection
     editStep (s, [note, wasActive] (Step& st)
     {
         st.note = (int8_t) note;
@@ -573,6 +713,7 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
             scrollStep = panStartStep - e.getDistanceFromDragStartX() / (double) pxPerStep;
             topNote = panStartTop + (float) e.getDistanceFromDragStartY() / rowHeight;
             clampView();
+            viewChanged();
             repaint();
             break;
 
@@ -604,8 +745,13 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
         case Drag::Resize:
         case Drag::Create:
         {
-            if (drag == Drag::Create && e.getDistanceFromDragStartX() < 3)
+            if (drag == Drag::Create && e.getDistanceFromDragStart() < 4 && ! createMoved)
                 break;
+            if (drag == Drag::Create && ! createMoved)
+            {
+                createMoved = true;
+                stopTimer();
+            }
             const float newGate = juce::jlimit (0.1f, 4.0f, (float) (xToStep (e.position.x) - dragStep));
             resizeSelection (newGate - dragStartGate);
             break;
@@ -634,7 +780,10 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
 
 void PianoRollComponent::mouseUp (const juce::MouseEvent&)
 {
+    stopTimer();
     stopPreview();
+    if (drag == Drag::Select)
+        setMouseCursor (juce::MouseCursor::NormalCursor);
     drag = Drag::None;
     dragStep = -1;
     proc.endGesture();
@@ -704,6 +853,7 @@ void PianoRollComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::
     }
 
     clampView();
+    viewChanged();
     repaint();
 }
 

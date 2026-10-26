@@ -90,6 +90,21 @@ private:
     struct PageButton final : public juce::TextButton
     {
         std::function<void()> onRightClick, onDoubleClick;
+        float viewFrom = 0.0f, viewTo = 0.0f;   // part of these 16 steps that is on screen (0..1)
+        juce::Colour viewColour { 0xff35e0ff };
+        void paintButton (juce::Graphics& g, bool over, bool down) override
+        {
+            juce::TextButton::paintButton (g, over, down);
+            if (viewTo > viewFrom)
+            {
+                // strip under the label: which part of this bar is visible (shows scroll + zoom)
+                auto r = getLocalBounds().toFloat().reduced (3.0f, 0.0f).removeFromBottom (4.0f).translated (0.0f, -1.0f);
+                g.setColour (juce::Colours::black.withAlpha (0.35f));
+                g.fillRoundedRectangle (r, 1.5f);
+                g.setColour (viewColour);
+                g.fillRoundedRectangle (r.withX (r.getX() + r.getWidth() * viewFrom).withWidth (r.getWidth() * (viewTo - viewFrom)), 1.5f);
+            }
+        }
         void mouseDoubleClick (const juce::MouseEvent& e) override
         {
             if (! e.mods.isPopupMenu() && onDoubleClick)
@@ -107,12 +122,16 @@ private:
         }
     };
     std::array<PageButton, 4> pageButtons;
+    std::array<std::unique_ptr<PianoRollWindow>, kNumChannels> rollWindows;
+    void openRollWindow (int channel);
+    void viewChanged();
     juce::Label pagesCaption;
     void updatePageButtons();
     void showBarMenu (int bar);
     bool hasBarClipboard = false;
     std::array<Step, 16> barClipboard {};
     int page = 0;
+    juce::Range<double> lastVisible;
 
     // matrix
     std::array<std::unique_ptr<ChannelStripComponent>, kNumChannels> strips;

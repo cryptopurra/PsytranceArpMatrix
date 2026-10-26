@@ -11,7 +11,13 @@ class ChannelStripComponent final : public juce::Component
 public:
     ChannelStripComponent (PluginProcessor& p, int channelIndex, juce::Colour colour);
 
-    void setPage (int page)  { grid.setPage (page); }
+    /** Bar button clicked: the piano roll scrolls there (the step grid view is shared, set by the editor). */
+    void showStep (int step)  { roll.showStep (step); grid.repaint(); }
+    /** Visible steps of whichever view this row shows (step grid or piano roll). */
+    juce::Range<double> visibleSteps() const;
+    std::function<void()> onViewChanged;       // zoom / scroll in the grid or piano roll
+    std::function<void()> onPopOut;            // open the piano roll in its own window
+    void repaintViews()      { grid.repaint(); roll.repaint(); }
     bool isPianoRoll() const noexcept { return proc.ui.view[(size_t) channel] == 1; }
     std::function<void()> onLayoutChanged;     // view switched: the editor re-distributes heights
     std::function<void()> onSelected;          // clicked: becomes the selected channel
@@ -34,7 +40,7 @@ private:
     juce::Label stats;
     StepGridComponent grid;
     PianoRollComponent roll;
-    juce::TextButton viewButton, laneButton;
+    juce::TextButton viewButton, laneButton, popButton;
     void updateViewButtons();
     bool compact = false;     // collapsed row (too small for the grid)
 

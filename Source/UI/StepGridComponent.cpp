@@ -7,16 +7,40 @@ StepGridComponent::StepGridComponent (PluginProcessor& p, int c) : proc (p), cha
     setRepaintsOnMouseActivity (false);
 }
 
+int StepGridComponent::zoomLevel (int current, int direction)
+{
+    static const int levels[] = { 4, 8, 16, 32, 64 };
+    int i = 0;
+    while (i < 4 && levels[i] < current)
+        ++i;
+    return levels[juce::jlimit (0, 4, i + direction)];
+}
+
+void StepGridComponent::clampView (PluginProcessor::UiState& ui)
+{
+    ui.gridCount = juce::jlimit (4, kMaxSteps, ui.gridCount);
+    ui.gridFirst = juce::jlimit (0, kMaxSteps - ui.gridCount, ui.gridFirst);
+}
+
+void StepGridComponent::scrollBy (int steps)
+{
+    proc.ui.gridFirst += steps;
+    clampView (proc.ui);
+    if (onViewChanged)
+        onViewChanged();
+}
+
 juce::Rectangle<float> StepGridComponent::cellBounds (int cell) const noexcept
 {
-    const float w = (float) getWidth() / 16.0f;
-    return { cell * w + 1.5f, 1.0f, w - 3.0f, (float) getHeight() - 2.0f };
+    const float w = (float) getWidth() / (float) count();
+    const float pad = w > 12.0f ? 1.5f : 0.5f;
+    return { cell * w + pad, 1.0f, w - 2.0f * pad, (float) getHeight() - 2.0f };
 }
 
 int StepGridComponent::stepAt (juce::Point<float> pos) const noexcept
 {
-    const int cell = juce::jlimit (0, 15, (int) (pos.x / ((float) getWidth() / 16.0f)));
-    return page * 16 + cell;
+    const int cell = juce::jlimit (0, count() - 1, (int) (pos.x / ((float) getWidth() / (float) count())));
+    return juce::jmin (kMaxSteps - 1, first() + cell);
 }
 
 void StepGridComponent::paint (juce::Graphics& g)
@@ -25,15 +49,19 @@ void StepGridComponent::paint (juce::Graphics& g)
     const int playing = proc.currentStep (channel);
     const bool enabled = ch.enabled;
 
-    for (int cell = 0; cell < 16; ++cell)
+    const int n = count();
+    const float cellW = (float) getWidth() / (float) n;
+    for (int cell = 0; cell < n; ++cell)
     {
-        const int s = page * 16 + cell;
+        const int s = first() + cell;
+        if (s >= kMaxSteps)
+            break;
         auto r = cellBounds (cell);
         const bool inLength = s < ch.length;
         const auto& st = ch.steps[(size_t) s];
 
         // background: beats are slightly brighter
-        auto bg = juce::Colour (0xff0d1622).brighter (cell % 4 == 0 ? 0.12f : 0.0f);
+        auto bg = juce::Colour (0xff0d1622).brighter (s % 4 == 0 ? 0.12f : 0.0f);
         if (! inLength)
             bg = bg.darker (0.6f);
         g.setColour (bg);
@@ -48,16 +76,19 @@ void StepGridComponent::paint (juce::Graphics& g)
                                                      c.darker (0.8f).withAlpha (0.85f), bar.getCentreX(), r.getBottom(), false));
             g.fillRoundedRectangle (bar, 3.0f);
 
-            g.setColour (juce::Colours::white.withAlpha (enabled ? 0.95f : 0.5f));
-            g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-            const auto name = ScaleLibrary::noteName (st.note) + juce::String (st.note / 12 - 1);
-            g.drawFittedText (name, r.toNearestInt().withHeight (16).translated (0, 2), juce::Justification::centred, 1);
+            if (cellW >= 18.0f)
+            {
+                g.setColour (juce::Colours::white.withAlpha (enabled ? 0.95f : 0.5f));
+                g.setFont (juce::FontOptions (cellW >= 30.0f ? 11.0f : 9.0f, juce::Font::bold));
+                const auto name = ScaleLibrary::noteName (st.note) + juce::String (st.note / 12 - 1);
+                g.drawFittedText (name, r.toNearestInt().withHeight (16).translated (0, 2), juce::Justification::centred, 1);
+            }
 
             juce::String flagText;
             if (st.accent) flagText << "A";
             if (st.slide)  flagText << "~";
             if (st.chord > 1) flagText << "x" << (int) st.chord;
-            if (flagText.isNotEmpty())
+            if (flagText.isNotEmpty() && cellW >= 18.0f)
             {
                 g.setFont (juce::FontOptions (10.0f));
                 g.drawFittedText (flagText, r.toNearestInt().removeFromBottom (14), juce::Justification::centred, 1);
@@ -74,6 +105,21 @@ void StepGridComponent::paint (juce::Graphics& g)
         {
             g.setColour (juce::Colours::white.withAlpha (0.8f));
             g.drawRoundedRectangle (r, 3.0f, 1.6f);
+        }
+
+        if (s % 16 == 0 && cell > 0)
+        {
+            // bar line + bar number when more than one bar is visible
+            const float x = cell * cellW;
+            g.setColour (colour.withAlpha (0.55f));
+            g.fillRect (x - 1.0f, 0.0f, 2.0f, (float) getHeight());
+        }
+        if (s % 16 == 0 && n > 16)
+        {
+            g.setColour (colour.withAlpha (0.8f));
+            g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
+            g.drawText (juce::String (s + 1), juce::Rectangle<float> (cell * cellW + 3.0f, (float) getHeight() - 12.0f, 30.0f, 11.0f),
+                        juce::Justification::centredLeft, false);
         }
     }
 }
@@ -92,6 +138,15 @@ void StepGridComponent::modifyStep (int step, const std::function<void (Step&)>&
 
 void StepGridComponent::mouseDown (const juce::MouseEvent& e)
 {
+    if (e.mods.isMiddleButtonDown())
+    {
+        // hold the wheel and drag: scroll the steps
+        panning = true;
+        panStartFirst = first();
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+        return;
+    }
+
     const int s = stepAt (e.position);
     if (s >= proc.getMatrix().getPattern().channels[(size_t) channel].length)
         return;
@@ -118,6 +173,15 @@ void StepGridComponent::mouseDown (const juce::MouseEvent& e)
 
 void StepGridComponent::mouseDrag (const juce::MouseEvent& e)
 {
+    if (panning)
+    {
+        const float cellW = (float) getWidth() / (float) count();
+        proc.ui.gridFirst = panStartFirst - juce::roundToInt ((float) e.getDistanceFromDragStartX() / cellW);
+        clampView (proc.ui);
+        if (onViewChanged)
+            onViewChanged();
+        return;
+    }
     if (dragStep < 0)
         return;
 
@@ -172,6 +236,12 @@ void StepGridComponent::mouseDrag (const juce::MouseEvent& e)
 
 void StepGridComponent::mouseUp (const juce::MouseEvent&)
 {
+    if (panning)
+    {
+        panning = false;
+        setMouseCursor (juce::MouseCursor::NormalCursor);
+        return;
+    }
     if (dragStep >= 0 && ! dragged)
         modifyStep (dragStep, [] (Step& st) { st.active = ! st.active; });
     dragStep = -1;
@@ -188,7 +258,7 @@ void StepGridComponent::mouseDoubleClick (const juce::MouseEvent& e)
     // double-click toggled the step twice (click + click): make sure it is on, then edit its name
     modifyStep (s, [] (Step& st) { st.active = true; });
 
-    const int cell = s - page * 16;
+    const int cell = s - first();
     auto r = cellBounds (cell).toNearestInt().withHeight (20).translated (0, 1);
     noteEditor = std::make_unique<juce::TextEditor>();
     noteEditor->setJustification (juce::Justification::centred);
@@ -231,6 +301,31 @@ void StepGridComponent::finishNoteEdit (bool apply)
 
 void StepGridComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
+    if (e.mods.isCommandDown() || e.mods.isCtrlDown())
+    {
+        // zoom around the step under the mouse
+        const float d = std::abs (w.deltaY) >= std::abs (w.deltaX) ? w.deltaY : w.deltaX;
+        if (std::abs (d) < 1.0e-5f)
+            return;
+        const int anchor = stepAt (e.position);
+        const float frac = e.position.x / (float) juce::jmax (1, getWidth());
+        proc.ui.gridCount = zoomLevel (count(), d > 0 ? -1 : 1);  // wheel up = zoom in (fewer steps)
+        proc.ui.gridFirst = anchor - juce::roundToInt (frac * (float) proc.ui.gridCount);
+        if (proc.ui.gridCount >= 16)
+            proc.ui.gridFirst = 4 * juce::roundToInt ((float) proc.ui.gridFirst / 4.0f); // keep beats aligned
+        clampView (proc.ui);
+        if (onViewChanged)
+            onViewChanged();
+        return;
+    }
+    if (std::abs (w.deltaX) > std::abs (w.deltaY) || e.mods.isAltDown())
+    {
+        const float d = std::abs (w.deltaX) > std::abs (w.deltaY) ? -w.deltaX : -w.deltaY;
+        if (std::abs (d) > 1.0e-5f)
+            scrollBy ((d > 0 ? 1 : -1) * juce::jmax (1, count() / 4));
+        return;
+    }
+
     const int s = stepAt (e.position);
     const auto& ch = proc.getMatrix().getPattern().channels[(size_t) channel];
     if (s >= ch.length || ! ch.steps[(size_t) s].active || std::abs (w.deltaY) < 1.0e-4f)
