@@ -15,6 +15,8 @@ struct PresetMeta
     bool  lockToScale = true;
     juce::String arpMode = "Step";
     juce::String velocityMode = "Step";
+    // per channel (optional, written into each channel object; empty = use the global value above)
+    std::array<juce::String, kNumChannels> channelTimeDivision, channelArpMode, channelVelocityMode, channelHold;
 };
 
 /** Pattern <-> JSON.

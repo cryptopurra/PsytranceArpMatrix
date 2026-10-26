@@ -17,6 +17,7 @@ public:
     juce::Range<double> visibleSteps() const;
     std::function<void()> onViewChanged;       // zoom / scroll in the grid or piano roll
     std::function<void()> onPopOut;            // open the piano roll in its own window
+    std::function<void (juce::Component&)> onPresetMenu; // choose a preset for this channel only
     void repaintViews()      { grid.repaint(); roll.repaint(); }
     bool isPianoRoll() const noexcept { return proc.ui.view[(size_t) channel] == 1; }
     std::function<void()> onLayoutChanged;     // view switched: the editor re-distributes heights
@@ -36,7 +37,8 @@ private:
     juce::ComboBox styleBox, midiBox, octBox, voiceBox, roleBox;
     juce::TextButton muteButton { "M" };
     juce::Slider glideSlider;
-    juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" };
+    juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" },
+                     presetButton { "Preset" };
     juce::Label stats;
     StepGridComponent grid;
     PianoRollComponent roll;

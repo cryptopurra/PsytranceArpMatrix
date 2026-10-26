@@ -63,7 +63,9 @@ public:
     void setBarMuted (int channel, int bar, bool muted);
     bool isBarMuted (int channel, int bar) const noexcept;
 
-    /** Call & response role: 0 = automatic (first active channel asks), 1 = call, 2 = answer. */
+    /** Call & response role: 0 = automatic (first active channel asks), 1 = call, 2 = answer,
+        3 = free (no question / answer: plain variations, no gap filling). */
+    static constexpr int kRoleFree = 3;
     void setRole (int channel, int role) noexcept;
     int  getRole (int channel) const noexcept       { return roles[(size_t) juce::jlimit (0, kNumChannels - 1, channel)]; }
     bool isAnswer (int channel) const noexcept;     // effective role used by the generator
@@ -80,6 +82,7 @@ public:
     //=== state ==================================================================
     const Pattern& getPattern() const noexcept       { return pattern; }
     void setPattern (const Pattern& p);              // preset load
+    void setChannelPattern (int channel, const ChannelPattern& ch); // one channel (channel preset / MIDI drop)
     int  getVersion() const noexcept                 { return version; }
 
     GeneratorContext contextFor (int channel) const noexcept;

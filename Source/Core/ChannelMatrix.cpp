@@ -26,14 +26,15 @@ GeneratorContext ChannelMatrix::contextFor (int c) const noexcept
     ctx.density = density;
     ctx.octaveShift = octaves[(size_t) juce::jlimit (0, kNumChannels - 1, c)];
     ctx.isResponse = isAnswer (c);
+    ctx.callResponse = getRole (c) != kRoleFree;
     return ctx;
 }
 
 int ChannelMatrix::questionChannel() const noexcept
 {
-    // the first enabled melodic-capable channel asks, the others answer
+    // the first enabled channel that takes part in call & response asks, the others answer
     for (int c = 0; c < kNumChannels; ++c)
-        if (pattern.channels[(size_t) c].enabled)
+        if (pattern.channels[(size_t) c].enabled && roles[(size_t) c] != kRoleFree)
             return c;
     return 0;
 }
@@ -45,6 +46,7 @@ InterlockMatrix ChannelMatrix::buildMatrix (int excluding) const
     for (int c = 0; c < kNumChannels; ++c)
         if (c != excluding && pattern.channels[(size_t) c].enabled)
             m.add (c, pattern.channels[(size_t) c]);
+    m.setCallResponse (excluding < 0 || getRole (excluding) != kRoleFree);
     return m;
 }
 
@@ -168,14 +170,14 @@ bool ChannelMatrix::isBarMuted (int c, int bar) const noexcept
 void ChannelMatrix::setRole (int c, int role) noexcept
 {
     if (c >= 0 && c < kNumChannels)
-        roles[(size_t) c] = juce::jlimit (0, 2, role);
+        roles[(size_t) c] = juce::jlimit (0, kRoleFree, role);
     touch();
 }
 
 bool ChannelMatrix::isAnswer (int c) const noexcept
 {
     const int r = getRole (c);
-    if (r == 1) return false;
+    if (r == 1 || r == kRoleFree) return false;
     if (r == 2) return true;
     // automatic: an explicit "call" channel asks, otherwise the first active channel asks
     for (int i = 0; i < kNumChannels; ++i)
@@ -395,6 +397,17 @@ void ChannelMatrix::clearChannel (int c)
     for (auto& st : pattern.channels[(size_t) c].steps)
         st.active = false;
     pattern.channels[(size_t) c].userEdited = true;
+    touch();
+}
+
+void ChannelMatrix::setChannelPattern (int c, const ChannelPattern& ch)
+{
+    if (c < 0 || c >= kNumChannels)
+        return;
+    pattern.channels[(size_t) c] = ch;
+    pattern.channels[(size_t) c].userEdited = false;
+    originals[(size_t) c] = pattern.channels[(size_t) c];
+    everGenerated[(size_t) c] = true;
     touch();
 }
 

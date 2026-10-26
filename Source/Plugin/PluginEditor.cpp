@@ -133,11 +133,21 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         strips[(size_t) c]->onSelected = [this]
         {
             varTargetBox.setSelectedItemIndex (proc.ui.varTarget, juce::dontSendNotification);
+            updateChannelCaptions();
             updatePageButtons();
             for (auto& s : strips) s->repaint();
         };
         strips[(size_t) c]->onViewChanged = [this] { viewChanged(); };
         strips[(size_t) c]->onPopOut = [this, c] { openRollWindow (c); };
+        strips[(size_t) c]->onPresetMenu = [this, c] (juce::Component& button)
+        {
+            showPresetTree (button, "Preset for CH " + juce::String (c + 1) + " only", [this, c] (const juce::File& f)
+            {
+                juce::String msg;
+                proc.loadChannelPreset (f, c, msg);
+                setStatus (msg);
+            });
+        };
         content.addAndMakeVisible (*strips[(size_t) c]);
     }
 
@@ -224,6 +234,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
 
     proc.onMatrixChanged = [this] { refreshAll(); };
 
+    updateChannelCaptions();
     StepGridComponent::clampView (proc.ui);   // keeps the saved zoom / scroll
     viewChanged();
     setResizable (true, true);
@@ -693,20 +704,29 @@ void PluginEditor::setStatus (const juce::String& s)
 //==============================================================================
 void PluginEditor::showPresetMenu()
 {
+    showPresetTree (presetsButton, {}, [this] (const juce::File& f)
+    {
+        setStatus (proc.loadPreset (f) ? "Loaded " + f.getFileName() : "Could not load " + f.getFileName());
+    });
+}
+
+void PluginEditor::showPresetTree (juce::Component& target, const juce::String& header,
+                                   std::function<void (const juce::File&)> chosen)
+{
     auto& pm = proc.getPresetManager();
     auto files = std::make_shared<std::vector<juce::File>>();
 
     // folders become sub-menus (recursively), so a large imported library stays browsable:
     // Presets/Library/<Category>/<Pack>/<preset>.json
-    std::function<juce::PopupMenu (const juce::File&)> buildMenu = [&] (const juce::File& dir)
+    std::function<void (juce::PopupMenu&, const juce::File&)> fill = [&] (juce::PopupMenu& m, const juce::File& dir)
     {
-        juce::PopupMenu m;
         auto dirs = dir.findChildFiles (juce::File::findDirectories, false);
         std::sort (dirs.begin(), dirs.end(), [] (const juce::File& a, const juce::File& b)
                    { return a.getFileName().compareNatural (b.getFileName()) < 0; });
         for (auto& d : dirs)
         {
-            auto sub = buildMenu (d);
+            juce::PopupMenu sub;
+            fill (sub, d);
             if (sub.getNumItems() > 0)
                 m.addSubMenu (d.getFileName().replace ("_", " "), sub);
         }
@@ -719,27 +739,39 @@ void PluginEditor::showPresetMenu()
             files->push_back (f);
             m.addItem ((int) files->size(), f.getFileNameWithoutExtension());
         }
-        return m;
     };
 
-    juce::PopupMenu menu = buildMenu (pm.getPresetsDir());
-    auto user = buildMenu (pm.getUserExportDir());
+    juce::PopupMenu menu;
+    if (header.isNotEmpty())
+        menu.addSectionHeader (header);
+    fill (menu, pm.getPresetsDir());
+    juce::PopupMenu user;
+    fill (user, pm.getUserExportDir());
     if (user.getNumItems() > 0)
         menu.addSubMenu ("User Exported", user);
     menu.addSeparator();
     menu.addItem (100000, "Open preset folder");
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&presetsButton),
-                        [this, files] (int r)
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&target),
+                        [this, files, chosen] (int r)
     {
         if (r == 100000)
             proc.getPresetManager().getRoot().startAsProcess();
-        else if (r > 0 && r <= (int) files->size())
-        {
-            const auto& f = (*files)[(size_t) (r - 1)];
-            setStatus (proc.loadPreset (f) ? "Loaded " + f.getFileName() : "Could not load " + f.getFileName());
-        }
+        else if (r > 0 && r <= (int) files->size() && chosen)
+            chosen ((*files)[(size_t) (r - 1)]);
     });
+}
+
+void PluginEditor::updateChannelCaptions()
+{
+    // the performance controls below edit the selected channel: say which one
+    const juce::String ch = "  CH " + juce::String (proc.ui.selectedChannel + 1);
+    const std::pair<juce::Component*, const char*> items[] = {
+        { &divisionBox, "TIME / SYNC" }, { &modeBox, "MODE" }, { &velModeBox, "VELOCITY MODE" },
+        { &holdBox, "HOLD" }, { &varStyleBox, "VARIATION STYLE" }, { &varAmountKnob, "VARIATION" } };
+    for (auto& [comp, text] : items)
+        if (auto it = captions.find (comp); it != captions.end())
+            it->second->setText (juce::String (text) + (comp == &varAmountKnob ? juce::String() : ch), juce::dontSendNotification);
 }
 
 void PluginEditor::showSaveAsDialog()
@@ -789,8 +821,8 @@ bool PluginEditor::isInterestedInFileDrag (const juce::StringArray& files)
 
 void PluginEditor::filesDropped (const juce::StringArray& files, int x, int y)
 {
-    // dropped on a channel row -> import into that channel
-    int target = 0;
+    // dropped on a channel row -> every note goes into that channel only
+    int target = -1;
     for (int c = 0; c < kNumChannels; ++c)
         if (strips[(size_t) c]->getBounds().contains (content.getLocalPoint (this, juce::Point<int> (x, y))))
             target = c;
@@ -800,12 +832,22 @@ void PluginEditor::filesDropped (const juce::StringArray& files, int x, int y)
         juce::File f (path);
         if (f.hasFileExtension (".json"))
         {
-            setStatus (proc.loadPreset (f) ? "Loaded " + f.getFileName() : "Not a pattern file");
+            if (target >= 0)
+            {
+                juce::String msg;
+                proc.loadChannelPreset (f, target, msg);   // dropped on a row: that channel only
+                setStatus (msg);
+            }
+            else
+                setStatus (proc.loadPreset (f) ? "Loaded " + f.getFileName() : "Not a pattern file");
             return;
         }
 
         juce::String msg;
-        proc.importMidi (f, target, msg);
+        if (target >= 0)
+            proc.importMidiIntoChannel (f, target, msg);
+        else
+            proc.importMidi (f, 0, msg); // elsewhere: multi-channel files fill several channels
         setStatus (msg);
         return;
     }

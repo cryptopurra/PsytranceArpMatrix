@@ -338,7 +338,7 @@ ChannelPattern PatternGenerator::generate (int c, GeneratorStyle style, int leng
         st.slide = next < 16 && distance == 1 && rng.nextFloat() < prof.slideProb;
     }
 
-    if (InterlockMatrix::isMelodic (style) || style == GeneratorStyle::Acid)
+    if ((InterlockMatrix::isMelodic (style) || style == GeneratorStyle::Acid) && ctx.callResponse)
         finalisePhrase (ch, 0, 16, ctx, prof, ctx.isResponse);
 
     //--- 3. derive further bars (form: A A' B A'' / call & response) ------------
@@ -352,11 +352,13 @@ ChannelPattern PatternGenerator::generate (int c, GeneratorStyle style, int leng
         for (int s = 0; s < 16; ++s)
             tmp.steps[(size_t) s] = ch.steps[(size_t) (bar * 16 + s)];
 
-        const auto var = (bar % 2 == 1) ? VariationStyle::Answer : VariationStyle::Neighbors;
+        // FREE (no call & response): the bars are plain variations, nothing asks or answers
+        const bool answerBar = ctx.callResponse && (bar % 2 == 1);
+        const auto var = answerBar ? VariationStyle::Answer : VariationStyle::Neighbors;
         GeneratorContext vctx = ctx;
-        vctx.isResponse = (bar % 2 == 1);
+        vctx.isResponse = answerBar;
         if (style != GeneratorStyle::RollingBass)
-            applyVariation (tmp, var, bar % 2 == 1 ? 0.5f : 0.25f, vctx, rng);
+            applyVariation (tmp, var, answerBar ? 0.5f : 0.25f, vctx, rng);
 
         for (int s = 0; s < 16; ++s)
             ch.steps[(size_t) (bar * 16 + s)] = tmp.steps[(size_t) s];

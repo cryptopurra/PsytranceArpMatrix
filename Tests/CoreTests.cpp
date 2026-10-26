@@ -219,6 +219,15 @@ public:
             expect (bm.isAnswer (0) && ! bm.isAnswer (1));
             bm.setRole (0, 1);
             expect (! bm.isAnswer (0));
+
+            // FREE: no question / answer at all; AUTO channels ignore it when choosing who asks
+            bm.setRole (0, ChannelMatrix::kRoleFree);
+            bm.setRole (1, 0);
+            bm.setChannelEnabled (2, true);
+            expect (! bm.isAnswer (0));
+            expect (! bm.isAnswer (1) && bm.isAnswer (2)); // channel 2 is now the first to ask
+            bm.regenerateChannel (0);
+            expect (bm.getPattern().channels[0].countActive() > 0);
         }
 
         beginTest ("arpeggio and rhythmic styles");
@@ -429,7 +438,7 @@ public:
             ArpEngine d;
             d.prepare (48000.0);
             ArpParams dp;
-            dp.holdMode = HoldMode::Latch;
+            dp.holdMode.fill (HoldMode::Latch);
             juce::MidiBuffer k;
             k.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0);
             k.addEvent (juce::MidiMessage::noteOff (1, 60), 10);
@@ -551,6 +560,48 @@ public:
             }
             expect (notes > 150, "notes " + juce::String (notes));
             expect (worst <= 12.0, "worst error " + juce::String (worst, 1) + " samples");
+        }
+
+        beginTest ("every channel runs at its own TIME / SYNC");
+        {
+            ChannelMatrix dm;
+            dm.setSeed (9);
+            dm.setLength (16);
+            dm.initialiseDefault();
+            Pattern dp2 = dm.getPattern();
+            for (int c = 0; c < 2; ++c)
+            {
+                dp2.channels[(size_t) c].enabled = true;
+                dp2.channels[(size_t) c].length = 16;
+                dp2.channels[(size_t) c].midiChannel = c + 1;
+                for (auto& st : dp2.channels[(size_t) c].steps) { st.active = true; st.gate = 0.5f; st.chord = 1; }
+            }
+            ArpEngine de;
+            const double sr = 48000.0, tempo = 145.0, pps = tempo / 60.0 / sr;
+            de.prepare (sr);
+            ArpParams dpar;
+            dpar.division[1] = TimeDivision::Eighth;
+            int n1 = 0, n2 = 0, offGrid = 0;
+            double q = 0.0;
+            while (q < 4.0 - 1.0e-9) // one bar
+            {
+                juce::MidiBuffer b;
+                de.process (b, 256, { true, q, tempo, true, false }, dp2, dpar);
+                for (const auto meta : b)
+                {
+                    const auto m = meta.getMessage();
+                    if (! m.isNoteOn()) continue;
+                    const double at = q + meta.samplePosition * pps;
+                    if (at > 4.0 - 0.01) continue; // next bar
+                    const double grid = m.getChannel() == 2 ? 0.5 : 0.25;
+                    if (std::abs (at - grid * juce::roundToInt (at / grid)) > 2.0 * pps) ++offGrid;
+                    (m.getChannel() == 2 ? n2 : n1)++;
+                }
+                q += 256 * pps;
+            }
+            expectEquals (n1, 16);
+            expectEquals (n2, 8);
+            expectEquals (offGrid, 0);
         }
 
         beginTest ("a held non-root key does not change the pattern unless Key Follow is on");
@@ -732,7 +783,7 @@ public:
         }
 
         beginTest ("internal clock with held keys + arp Up");
-        params.mode = ArpMode::Up;
+        params.mode[0] = ArpMode::Up;
         params.playWithoutKeys = false;
         e.reset();
         juce::MidiBuffer keys;

@@ -33,6 +33,9 @@ private:
     void refreshAll();
     void setStatus (const juce::String& s);
     void showPresetMenu();
+    /** Preset tree (factory + library + user exported) as a popup; calls back with the chosen file. */
+    void showPresetTree (juce::Component& target, const juce::String& header, std::function<void (const juce::File&)> chosen);
+    void updateChannelCaptions();
     void showSaveAsDialog();
     void chooseMidiToImport();
     void setPage (int p);

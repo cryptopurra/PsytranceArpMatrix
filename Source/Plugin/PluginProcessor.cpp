@@ -88,6 +88,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
                                                     "Ch" + String (c + 1) + " Glide (CC5)", 0, 127, 0));
         l.add (std::make_unique<AudioParameterBool> (ParameterID { ParamID::channelMute (c), 1 },
                                                      "Ch" + String (c + 1) + " Mute", false));
+        l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::channelDiv (c), 1 },
+                                                       "Ch" + String (c + 1) + " Time / Sync", PatternSerializer::timeDivisionNames(), 3));
+        l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::channelMode (c), 1 },
+                                                       "Ch" + String (c + 1) + " Mode", PatternSerializer::arpModeNames(), (int) ArpMode::Step));
+        l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::channelVelMode (c), 1 },
+                                                       "Ch" + String (c + 1) + " Velocity Mode", PatternSerializer::velocityModeNames(), (int) VelocityMode::Step));
+        l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::channelHold (c), 1 },
+                                                       "Ch" + String (c + 1) + " Hold", PatternSerializer::holdModeNames(), (int) HoldMode::Off));
     }
     return l;
 }
@@ -101,7 +109,8 @@ PluginProcessor::PluginProcessor()
                       ),
       apvts (*this, nullptr, "PsytranceArpMatrix", createLayout())
 {
-    for (auto* id : { ParamID::root, ParamID::scale, ParamID::lock, ParamID::length, ParamID::density })
+    for (auto* id : { ParamID::root, ParamID::scale, ParamID::lock, ParamID::length, ParamID::density,
+                      ParamID::division, ParamID::arpMode, ParamID::velMode, ParamID::holdMode })
         apvts.addParameterListener (id, this);
     for (int c = 0; c < kNumChannels; ++c)
     {
@@ -116,6 +125,10 @@ PluginProcessor::PluginProcessor()
         voiceParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelVoice (c));
         glideParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelGlide (c));
         muteParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelMute (c));
+        divParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelDiv (c));
+        modeParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelMode (c));
+        velModeParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelVelMode (c));
+        holdParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelHold (c));
     }
     muteAllParam = apvts.getRawParameterValue (ParamID::muteAll);
 
@@ -163,10 +176,6 @@ void PluginProcessor::prepareToPlay (double sampleRate, int)
 ArpParams PluginProcessor::readArpParams() const
 {
     ArpParams p;
-    p.mode            = (ArpMode) choiceIndex (apvts, ParamID::arpMode);
-    p.velocityMode    = (VelocityMode) choiceIndex (apvts, ParamID::velMode);
-    p.holdMode        = (HoldMode) choiceIndex (apvts, ParamID::holdMode);
-    p.division        = (TimeDivision) choiceIndex (apvts, ParamID::division);
     p.swing           = value (apvts, ParamID::swing) / 100.0f;
     p.gateScale       = value (apvts, ParamID::gate) / 100.0f;
     p.octave          = juce::roundToInt (value (apvts, ParamID::octave));
@@ -184,6 +193,10 @@ ArpParams PluginProcessor::readArpParams() const
         const int g = juce::roundToInt (glideParams[(size_t) c]->load());
         p.glide[(size_t) c] = g > 0 ? g : -1;
         p.channelMuted[(size_t) c] = muteParams[(size_t) c]->load() > 0.5f || muteAllParam->load() > 0.5f;
+        p.division[(size_t) c]     = (TimeDivision) juce::jlimit (0, (int) TimeDivision::numDivisions - 1, juce::roundToInt (divParams[(size_t) c]->load()));
+        p.mode[(size_t) c]         = (ArpMode) juce::jlimit (0, (int) ArpMode::numModes - 1, juce::roundToInt (modeParams[(size_t) c]->load()));
+        p.velocityMode[(size_t) c] = (VelocityMode) juce::jlimit (0, (int) VelocityMode::numModes - 1, juce::roundToInt (velModeParams[(size_t) c]->load()));
+        p.holdMode[(size_t) c]     = (HoldMode) juce::jlimit (0, 2, juce::roundToInt (holdParams[(size_t) c]->load()));
     }
     return p;
 }
@@ -299,6 +312,12 @@ void PluginProcessor::parameterChanged (const juce::String& id, float)
     if (gSuppress.load())
         return;
 
+    if (id == ParamID::division || id == ParamID::arpMode || id == ParamID::velMode || id == ParamID::holdMode)
+    {
+        proxyDirty.store (true); // the global control edits the selected channel
+        triggerAsyncUpdate();
+        return;
+    }
     if (id == ParamID::root || id == ParamID::scale || id == ParamID::lock)
         keyDirty.store (true);
     else if (id == ParamID::length || id == ParamID::density)
@@ -309,8 +328,31 @@ void PluginProcessor::parameterChanged (const juce::String& id, float)
     triggerAsyncUpdate();
 }
 
+void PluginProcessor::copyProxiesToChannel (int c)
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    const Suppress s (gSuppress);
+    setParam (apvts, ParamID::channelDiv (c),     (float) choiceIndex (apvts, ParamID::division));
+    setParam (apvts, ParamID::channelMode (c),    (float) choiceIndex (apvts, ParamID::arpMode));
+    setParam (apvts, ParamID::channelVelMode (c), (float) choiceIndex (apvts, ParamID::velMode));
+    setParam (apvts, ParamID::channelHold (c),    (float) choiceIndex (apvts, ParamID::holdMode));
+}
+
+void PluginProcessor::showChannelInProxies (int c)
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    const Suppress s (gSuppress);
+    setParam (apvts, ParamID::division, (float) juce::roundToInt (divParams[(size_t) c]->load()));
+    setParam (apvts, ParamID::arpMode,  (float) juce::roundToInt (modeParams[(size_t) c]->load()));
+    setParam (apvts, ParamID::velMode,  (float) juce::roundToInt (velModeParams[(size_t) c]->load()));
+    setParam (apvts, ParamID::holdMode, (float) juce::roundToInt (holdParams[(size_t) c]->load()));
+}
+
 void PluginProcessor::handleAsyncUpdate()
 {
+    if (proxyDirty.exchange (false))
+        copyProxiesToChannel (ui.selectedChannel);
+
     if (keyDirty.load() || lengthDirty.load() || channelsDirty.load())
         pushUndo (true);
 
@@ -477,11 +519,14 @@ void PluginProcessor::selectChannel (int c)
         return;
 
     // remember the controls for the channel we leave, show the settings of the new one
+    copyProxiesToChannel (prev);
+    proxyDirty.store (false);
     ui.varStyle[(size_t) prev] = choiceIndex (apvts, ParamID::varStyle);
     ui.varAmount[(size_t) prev] = value (apvts, ParamID::varAmount);
     ui.selectedChannel = c;
     setParam (apvts, ParamID::varStyle, (float) ui.varStyle[(size_t) c]);
     setParam (apvts, ParamID::varAmount, ui.varAmount[(size_t) c]);
+    showChannelInProxies (c);
     if (ui.varTarget > 0)
         ui.varTarget = c + 1; // VAR ON a single channel follows the selection
 }
@@ -523,6 +568,82 @@ bool PluginProcessor::importMidi (const juce::File& f, int targetChannel, juce::
     return true;
 }
 
+bool PluginProcessor::importMidiIntoChannel (const juce::File& f, int c, juce::String& message)
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    // the key of the file is applied only when this is the only active channel; otherwise the
+    // other channels keep the current key and the imported notes are played in it (LOCK)
+    bool alone = true;
+    for (int i = 0; i < kNumChannels; ++i)
+        alone &= (i == c || ! matrix.isChannelEnabled (i));
+
+    auto res = MidiPatternImporter::importFile (f, matrix.getPattern(), c, alone, true);
+    if (! res.ok())
+    {
+        message = res.error.isNotEmpty() ? res.error : juce::String ("Nothing to import");
+        return false;
+    }
+
+    importKey = res.key;
+    auto chp = res.pattern.channels[(size_t) c];
+    chp.enabled = true;
+    chp.midiChannel = matrix.getPattern().channels[(size_t) c].midiChannel; // keep the row's OUT
+    chp.style = matrix.getPattern().channels[(size_t) c].style;
+    editMatrix ([&] (ChannelMatrix& m)
+    {
+        if (alone)
+            m.setKey (res.pattern.rootNote, res.pattern.scaleIndex, false);
+        m.setChannelPattern (c, chp);
+    });
+    message = "Imported " + juce::String (res.notesImported) + " notes into channel " + juce::String (c + 1)
+            + " - file key: " + res.key.describe() + (alone ? "" : " (kept the current key)");
+    return true;
+}
+
+bool PluginProcessor::loadChannelPreset (const juce::File& f, int c, juce::String& message)
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    Pattern p;
+    PresetMeta meta;
+    if (! presets.loadPreset (f, p, &meta))
+    {
+        message = "Could not load " + f.getFileName();
+        return false;
+    }
+
+    int src = p.channels[(size_t) c].enabled ? c : -1;
+    for (int i = 0; i < kNumChannels && src < 0; ++i)
+        if (p.channels[(size_t) i].enabled)
+            src = i;
+    if (src < 0)
+        src = c;
+
+    // move the part into the current key (nearest transposition), then into the current scale
+    const auto& cur = matrix.getPattern();
+    int shift = ((cur.rootNote - p.rootNote) % 12 + 12) % 12;
+    if (shift > 6)
+        shift -= 12;
+    const auto& scale = ScaleLibrary::get()[cur.scaleIndex];
+    auto chp = p.channels[(size_t) src];
+    for (auto& st : chp.steps)
+    {
+        int n = st.note + shift;
+        if (matrix.isLocked())
+            n = ScaleLibrary::quantize (n, cur.rootNote, scale);
+        st.note = (int8_t) juce::jlimit (0, 127, n);
+    }
+    chp.enabled = true;
+    chp.midiChannel = cur.channels[(size_t) c].midiChannel;
+
+    editMatrix ([&] (ChannelMatrix& m) { m.setChannelPattern (c, chp); });
+    applyChannelMeta (c, meta, src);
+    if (c == ui.selectedChannel)
+        showChannelInProxies (c);
+    message = "Channel " + juce::String (c + 1) + ": " + f.getFileNameWithoutExtension()
+            + " (part " + juce::String (src + 1) + ", " + styleName (chp.style) + ")";
+    return true;
+}
+
 //==============================================================================
 PresetMeta PluginProcessor::currentMeta() const
 {
@@ -534,19 +655,41 @@ PresetMeta PluginProcessor::currentMeta() const
     m.lockToScale = value (apvts, ParamID::lock) > 0.5f;
     m.arpMode = PatternSerializer::arpModeNames()[choiceIndex (apvts, ParamID::arpMode)];
     m.velocityMode = PatternSerializer::velocityModeNames()[choiceIndex (apvts, ParamID::velMode)];
+    for (int c = 0; c < kNumChannels; ++c)
+    {
+        m.channelTimeDivision[(size_t) c] = PatternSerializer::timeDivisionNames()[juce::roundToInt (divParams[(size_t) c]->load())];
+        m.channelArpMode[(size_t) c]      = PatternSerializer::arpModeNames()[juce::roundToInt (modeParams[(size_t) c]->load())];
+        m.channelVelocityMode[(size_t) c] = PatternSerializer::velocityModeNames()[juce::roundToInt (velModeParams[(size_t) c]->load())];
+        m.channelHold[(size_t) c]         = PatternSerializer::holdModeNames()[juce::roundToInt (holdParams[(size_t) c]->load())];
+    }
     return m;
+}
+
+void PluginProcessor::applyChannelMeta (int c, const PresetMeta& meta, int src)
+{
+    // per-channel value from the preset if it has one, otherwise the preset's global value
+    auto pick = [src] (const std::array<juce::String, kNumChannels>& perChannel, const juce::String& global)
+    {
+        return perChannel[(size_t) juce::jlimit (0, kNumChannels - 1, src)].isNotEmpty()
+                 ? perChannel[(size_t) juce::jlimit (0, kNumChannels - 1, src)] : global;
+    };
+    const Suppress s (gSuppress);
+    setParam (apvts, ParamID::channelDiv (c), (float) (int) PatternSerializer::timeDivisionFromName (pick (meta.channelTimeDivision, meta.timeDivision)));
+    const int am = PatternSerializer::arpModeNames().indexOf (pick (meta.channelArpMode, meta.arpMode));
+    if (am >= 0) setParam (apvts, ParamID::channelMode (c), (float) am);
+    const int vm = PatternSerializer::velocityModeNames().indexOf (pick (meta.channelVelocityMode, meta.velocityMode));
+    if (vm >= 0) setParam (apvts, ParamID::channelVelMode (c), (float) vm);
+    const int hm = PatternSerializer::holdModeNames().indexOf (pick (meta.channelHold, PatternSerializer::holdModeNames()[0]));
+    if (hm >= 0) setParam (apvts, ParamID::channelHold (c), (float) hm);
 }
 
 void PluginProcessor::applyMeta (const PresetMeta& meta)
 {
-    setParam (apvts, ParamID::division, (float) (int) PatternSerializer::timeDivisionFromName (meta.timeDivision));
     setParam (apvts, ParamID::swing, meta.swing * 100.0f);
     setParam (apvts, ParamID::gate, meta.gateScale * 100.0f);
-
-    const int am = PatternSerializer::arpModeNames().indexOf (meta.arpMode);
-    if (am >= 0) setParam (apvts, ParamID::arpMode, (float) am);
-    const int vm = PatternSerializer::velocityModeNames().indexOf (meta.velocityMode);
-    if (vm >= 0) setParam (apvts, ParamID::velMode, (float) vm);
+    for (int c = 0; c < kNumChannels; ++c)
+        applyChannelMeta (c, meta, c);
+    showChannelInProxies (ui.selectedChannel);
 
     const Suppress s (gSuppress);
     setParam (apvts, ParamID::lock, meta.lockToScale ? 1.0f : 0.0f);
@@ -580,7 +723,6 @@ juce::File PluginProcessor::savePresetAs (const juce::String& name, const juce::
 MultiMidiExporter::Options PluginProcessor::exportOptions() const
 {
     MultiMidiExporter::Options o;
-    o.division = (TimeDivision) choiceIndex (apvts, ParamID::division);
     o.swing = value (apvts, ParamID::swing) / 100.0f;
     o.gateScale = value (apvts, ParamID::gate) / 100.0f;
     o.octave = juce::roundToInt (value (apvts, ParamID::octave));
@@ -592,6 +734,7 @@ MultiMidiExporter::Options PluginProcessor::exportOptions() const
         o.voiceMode[(size_t) c] = (VoiceMode) juce::roundToInt (voiceParams[(size_t) c]->load());
         const int g = juce::roundToInt (glideParams[(size_t) c]->load());
         o.glide[(size_t) c] = g > 0 ? g : -1;
+        o.division[(size_t) c] = (TimeDivision) juce::roundToInt (divParams[(size_t) c]->load());
     }
     return o;
 }
@@ -699,6 +842,13 @@ void PluginProcessor::setStateInformation (const void* data, int size)
         apvts.replaceState (tree);
     }
 
+    if (xml->getChildByAttribute ("id", ParamID::channelDiv (0)) == nullptr)
+    {
+        // project saved before v0.9: one TIME / MODE / VELOCITY MODE / HOLD for every channel
+        for (int c = 0; c < kNumChannels; ++c)
+            copyProxiesToChannel (c);
+    }
+
     ScaleLibrary::setCustomMask ((int) tree.getProperty ("customScale", ScaleLibrary::getCustomMask()));
     currentPresetName = tree.getProperty ("presetName", "Init").toString();
     {
@@ -711,6 +861,7 @@ void PluginProcessor::setStateInformation (const void* data, int size)
         }
         ui.sizeIndex = juce::jlimit (0, 5, (int) tree.getProperty ("uiSizeV2", 2));
         ui.selectedChannel = juce::jlimit (0, kNumChannels - 1, (int) tree.getProperty ("uiSelected", 0));
+        showChannelInProxies (ui.selectedChannel);
         const auto grid = juce::StringArray::fromTokens (tree.getProperty ("uiGrid", "0,16").toString(), ",", "");
         if (grid.size() == 2)
         {

@@ -36,6 +36,9 @@ public:
     static int resolveCollisions (Pattern& p, int maxVoices = 3) noexcept;
 
     static int priority (GeneratorStyle s) noexcept;
+
+    /** false: the channel being generated ignores call & response (fills no gaps on purpose). */
+    void setCallResponse (bool on) noexcept { callResponse = on; }
     static bool isMelodic (GeneratorStyle s) noexcept
     {
         return s == GeneratorStyle::FMLead || s == GeneratorStyle::LeadSynth;
@@ -46,5 +49,6 @@ private:
     std::array<GeneratorStyle, kNumChannels> styles {};
     std::array<bool, kNumChannels> present {};
     std::array<int, kNumChannels> lengths {};
+    bool callResponse = true;
 };
 } // namespace pam

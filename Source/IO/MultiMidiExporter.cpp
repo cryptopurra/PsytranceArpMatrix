@@ -14,13 +14,12 @@ int MultiMidiExporter::totalBars (const Pattern& p, const Options& o)
     if (o.bars > 0)
         return o.bars;
 
-    const double stepLen = stepLengthInQuarters (o.division);
-    const double stepsPerBar = 4.0 / stepLen;
-    int maxLen = 1;
-    for (auto& ch : p.channels)
-        if (ch.enabled)
-            maxLen = juce::jmax (maxLen, ch.length);
-    return juce::jmax (1, (int) std::ceil (maxLen / stepsPerBar - 1.0e-9));
+    // the longest channel (in time: steps x its own step length) decides the file length
+    double quarters = 4.0;
+    for (int c = 0; c < kNumChannels; ++c)
+        if (p.channels[(size_t) c].enabled)
+            quarters = juce::jmax (quarters, p.channels[(size_t) c].length * stepLengthInQuarters (o.division[(size_t) c]));
+    return juce::jmax (1, (int) std::ceil (quarters / 4.0 - 1.0e-9));
 }
 
 void MultiMidiExporter::addHeader (juce::MidiMessageSequence& seq, const Pattern& p, const Options&,
@@ -49,10 +48,9 @@ juce::MidiMessageSequence MultiMidiExporter::buildChannelSequence (const Pattern
 
     const auto& ch = p.channels[(size_t) c];
     const auto& scale = ScaleLibrary::get()[p.scaleIndex];
-    const double stepLen = stepLengthInQuarters (o.division);
+    const double stepLen = stepLengthInQuarters (o.division[(size_t) c]);
     const double ticksPerStep = stepLen * o.ppq;
-    const int stepsPerBar = juce::roundToInt (4.0 / stepLen);
-    const int totalSteps = totalBars (p, o) * stepsPerBar;
+    const int totalSteps = (int) std::floor (totalBars (p, o) * 4.0 / stepLen + 1.0e-9);
     const int len = juce::jlimit (1, kMaxSteps, ch.length);
     const double swingTicks = juce::jlimit (0.0f, 1.0f, o.swing) * ticksPerStep / 3.0;
     const int midiCh = juce::jlimit (1, 16, ch.midiChannel);

@@ -16,6 +16,7 @@ struct GeneratorContext
     float density      = 1.0f;  // global density multiplier (0.25 .. 1.5)
     int   octaveShift  = 0;     // per-channel octave offset
     bool  isResponse   = false; // call & response: this channel answers another one
+    bool  callResponse = true;  // false (role FREE): no question / answer shaping at all
 };
 
 /** Procedural generator for one channel of the matrix.

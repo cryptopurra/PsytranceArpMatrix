@@ -5,7 +5,7 @@
 namespace pam
 {
 MidiPatternImporter::Result MidiPatternImporter::importNotes (const juce::Array<AnalyzedNote>& all, const Pattern& base,
-                                                              int targetChannel, bool applyKey)
+                                                              int targetChannel, bool applyKey, bool mergeIntoTarget)
 {
     Result r;
     r.pattern = base;
@@ -26,7 +26,7 @@ MidiPatternImporter::Result MidiPatternImporter::importNotes (const juce::Array<
     // group by MIDI channel (multi-channel files map to several matrix channels)
     std::map<int, juce::Array<AnalyzedNote>> groups;
     for (auto& n : all)
-        groups[n.channel].add (n);
+        groups[mergeIntoTarget ? 0 : n.channel].add (n);
 
     const bool multi = groups.size() > 1;
     int matrixChannel = multi ? 0 : juce::jlimit (0, kNumChannels - 1, targetChannel);
@@ -103,7 +103,7 @@ MidiPatternImporter::Result MidiPatternImporter::importNotes (const juce::Array<
 }
 
 MidiPatternImporter::Result MidiPatternImporter::importFile (const juce::File& file, const Pattern& base,
-                                                             int targetChannel, bool applyKey)
+                                                             int targetChannel, bool applyKey, bool mergeIntoTarget)
 {
     juce::FileInputStream in (file);
     juce::MidiFile mf;
@@ -116,6 +116,6 @@ MidiPatternImporter::Result MidiPatternImporter::importFile (const juce::File& f
     }
 
     auto notes = MidiAnalyzer::extractNotes (mf);
-    return importNotes (notes, base, targetChannel, applyKey);
+    return importNotes (notes, base, targetChannel, applyKey, mergeIntoTarget);
 }
 } // namespace pam

@@ -26,9 +26,10 @@ public:
         bool ok() const noexcept { return error.isEmpty() && channelsFilled > 0; }
     };
 
+    /** mergeIntoTarget: every note goes into targetChannel, even from multi-channel files. */
     static Result importNotes (const juce::Array<AnalyzedNote>& notes, const Pattern& base,
-                               int targetChannel = 0, bool applyDetectedKey = true);
+                               int targetChannel = 0, bool applyDetectedKey = true, bool mergeIntoTarget = false);
     static Result importFile (const juce::File& file, const Pattern& base,
-                              int targetChannel = 0, bool applyDetectedKey = true);
+                              int targetChannel = 0, bool applyDetectedKey = true, bool mergeIntoTarget = false);
 };
 } // namespace pam

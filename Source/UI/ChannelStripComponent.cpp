@@ -46,11 +46,12 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
     muteButton.setTooltip ("Mute this channel (no MIDI out, the pattern is kept; turning CH off/on instead makes a new one)");
     addAndMakeVisible (muteButton);
 
-    roleBox.addItemList ({ "AUTO", "CALL Q", "ANSW A" }, 1);
+    roleBox.addItemList ({ "AUTO", "CALL Q", "ANSW A", "FREE" }, 1);
     roleBox.setScrollWheelEnabled (true);
     roleBox.setTooltip ("Call & response (Q = question/domanda, A = answer/risposta): CALL asks the musical question, "
                         "ANSW replies in the gaps and resolves on the tonic. AUTO: the first active channel asks, the "
-                        "others answer. Changing it regenerates the channel.");
+                        "others answer. FREE: no question / answer at all (plain variations, no gap filling). "
+                        "Changing it regenerates the channel.");
     roleBox.onChange = [this]
     {
         const int role = roleBox.getSelectedItemIndex();
@@ -93,7 +94,11 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
     gateButton.setTooltip ("Randomise gate lengths");
     gateButton.onClick = [this] { proc.editMatrix ([ch = channel] (ChannelMatrix& m) { m.randomizeGate (ch); }); };
 
-    for (auto* b : { &regenButton, &varButton, &velButton, &gateButton })
+    presetButton.setTooltip ("Load a preset into this channel only (its part is moved into the current key). "
+                             "You can also drop a MIDI file on this row: all its notes go into this channel.");
+    presetButton.onClick = [this] { if (onPresetMenu) onPresetMenu (presetButton); };
+
+    for (auto* b : { &regenButton, &varButton, &velButton, &gateButton, &presetButton })
         addAndMakeVisible (b);
 
     stats.setFont (juce::FontOptions (11.0f));
@@ -162,7 +167,7 @@ void ChannelStripComponent::updateViewButtons()
     roll.setLane ((PianoRollComponent::Lane) l);
     grid.setVisible (! pr && ! compact);
     roll.setVisible (pr && ! compact);
-    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &laneButton, &popButton, &glideSlider, &roleBox })
+    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &presetButton, &laneButton, &popButton, &glideSlider, &roleBox })
         b->setVisible (! compact);
 }
 
@@ -248,7 +253,8 @@ void ChannelStripComponent::resized()
 
     left.removeFromTop (4);
     auto row2 = left.removeFromTop (22);
-    const int w = row2.getWidth() / 4;
+    const int w = (row2.getWidth() - 56) / 4;
+    presetButton.setBounds (row2.removeFromRight (56).reduced (1, 0));
     regenButton.setBounds (row2.removeFromLeft (w).reduced (1, 0));
     varButton.setBounds (row2.removeFromLeft (w).reduced (1, 0));
     velButton.setBounds (row2.removeFromLeft (w).reduced (1, 0));

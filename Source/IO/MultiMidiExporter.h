@@ -18,7 +18,8 @@ public:
     {
         int    bars        = 0;      // 0 = pattern length rounded up to whole bars
         int    ppq         = 960;
-        TimeDivision division = TimeDivision::Sixteenth;
+        std::array<TimeDivision, kNumChannels> division { TimeDivision::Sixteenth, TimeDivision::Sixteenth,
+                                                          TimeDivision::Sixteenth, TimeDivision::Sixteenth }; // per channel
         float  swing       = 0.0f;   // 0..1, same curve as the realtime engine
         float  gateScale   = 1.0f;
         int    octave      = 0;

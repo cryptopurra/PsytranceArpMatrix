@@ -8,10 +8,12 @@ namespace pam
 {
 struct ArpParams
 {
-    ArpMode       mode           = ArpMode::Step;
-    VelocityMode  velocityMode   = VelocityMode::Step;
-    HoldMode      holdMode       = HoldMode::Off;
-    TimeDivision  division       = TimeDivision::Sixteenth;
+    // per matrix channel: step length, key arp mode, velocity source and hold behaviour
+    std::array<ArpMode, kNumChannels>      mode         { ArpMode::Step, ArpMode::Step, ArpMode::Step, ArpMode::Step };
+    std::array<VelocityMode, kNumChannels> velocityMode { VelocityMode::Step, VelocityMode::Step, VelocityMode::Step, VelocityMode::Step };
+    std::array<HoldMode, kNumChannels>     holdMode     { HoldMode::Off, HoldMode::Off, HoldMode::Off, HoldMode::Off };
+    std::array<TimeDivision, kNumChannels> division     { TimeDivision::Sixteenth, TimeDivision::Sixteenth,
+                                                          TimeDivision::Sixteenth, TimeDivision::Sixteenth };
     float swing          = 0.0f;  // 0..1 (delays every second step by up to 1/3 step)
     float gateScale      = 1.0f;  // global gate length multiplier ("% of time")
     int   octave         = 0;     // -3..+3
@@ -66,19 +68,22 @@ private:
     struct Sounding { int channel; int note; int samplesLeft; int source = -1; bool slide = false; };
 
     void handleInput (const juce::MidiBuffer& in, const ArpParams& p);
-    void triggerStep (juce::int64 globalStep, int sampleOffset, double samplesPerStep,
-                      const Pattern& pattern, const ArpParams& p, juce::MidiBuffer& out);
+    struct KeySet { std::array<Held, 32> held {}; int num = 0; };
+    void triggerChannel (int channel, juce::int64 channelStep, int sampleOffset, double samplesPerStep,
+                         const Pattern& pattern, const ArpParams& p, juce::MidiBuffer& out);
     void noteOn (juce::MidiBuffer& out, int channel, int note, int velocity, int sampleOffset, int lengthSamples,
                  int source = -1, bool slide = false);
     void sendGlideControllers (juce::MidiBuffer& out, const Pattern& pattern, const ArpParams& p);
     void flushNoteOffs (juce::MidiBuffer& out, int numSamples);
     void allNotesOff (juce::MidiBuffer& out, int sampleOffset);
     void allSoundOff (juce::MidiBuffer& out, const ArpParams& p, int sampleOffset);
-    int  arpNote (int channel, const Step& st, const Pattern& pattern, const ArpParams& p, int& keyVelocity);
+    int  arpNote (int channel, const KeySet& keys, const Step& st, const Pattern& pattern, const ArpParams& p, int& keyVelocity);
+    int  maxHeld (const ArpParams& p) const noexcept;
 
     double sampleRate = 44100.0;
-    std::array<Held, 32> held {};
-    int numHeld = 0, physicallyDown = 0, orderCounter = 0;
+    // held keys as seen by each HOLD mode (Off / Latch / Clean Hold), so every channel can use its own
+    std::array<KeySet, 3> keySets {};
+    int physicallyDown = 0, orderCounter = 0;
     bool latchArmed = false;
     std::array<Sounding, 128> sounding {};
     int numSounding = 0;
@@ -87,7 +92,7 @@ private:
     double internalPpq = 0.0;
     double lastPpqEnd = -1.0;
     int smoothBlocks = 0;            // blocks since the continuous clock was (re)synced
-    juce::int64 lastTriggeredStep = -1;
+    std::array<juce::int64, kNumChannels> lastTriggeredStep { -1, -1, -1, -1 };
     bool running = false;
     bool lastRunWasHost = false;
     juce::MidiBuffer outBuffer;

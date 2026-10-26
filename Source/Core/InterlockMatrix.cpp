@@ -85,7 +85,7 @@ float InterlockMatrix::onsetWeight (int c, GeneratorStyle style, int step) const
             for (int o = 0; o < kNumChannels; ++o)
                 otherMelodic |= (o != c && present[(size_t) o] && isMelodic (styles[(size_t) o]));
 
-            if (otherMelodic)
+            if (otherMelodic && callResponse)
                 w *= anyMelodicAt (step, c) ? 0.35f : 1.45f; // answer in the gaps (call & response)
 
             if (busy >= 2)

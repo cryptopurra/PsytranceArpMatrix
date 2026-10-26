@@ -62,6 +62,10 @@ juce::var PatternSerializer::toVar (const Pattern& p, const PresetMeta& meta)
         co->setProperty ("style", juce::String (styleName (ch.style)));
         co->setProperty ("midiChannel", ch.midiChannel);
         co->setProperty ("length", ch.length);
+        if (meta.channelTimeDivision[(size_t) c].isNotEmpty()) co->setProperty ("timeDivision", meta.channelTimeDivision[(size_t) c]);
+        if (meta.channelArpMode[(size_t) c].isNotEmpty())      co->setProperty ("arpMode", meta.channelArpMode[(size_t) c]);
+        if (meta.channelVelocityMode[(size_t) c].isNotEmpty()) co->setProperty ("velocityMode", meta.channelVelocityMode[(size_t) c]);
+        if (meta.channelHold[(size_t) c].isNotEmpty())         co->setProperty ("hold", meta.channelHold[(size_t) c]);
         juce::Array<juce::var> muted;
         for (auto b : ch.barMuted)
             muted.add (b);
@@ -164,6 +168,14 @@ bool PatternSerializer::fromVar (const juce::var& v, Pattern& out, PresetMeta* m
         meta->lockToScale  = (bool) v.getProperty ("lock", true);
         meta->arpMode      = v.getProperty ("arpMode", "Step").toString();
         meta->velocityMode = v.getProperty ("velocityMode", "Step").toString();
+        for (int c = 0; c < kNumChannels && c < chans->size(); ++c)
+        {
+            const auto& cv = chans->getReference (c);
+            meta->channelTimeDivision[(size_t) c] = cv.getProperty ("timeDivision", "").toString();
+            meta->channelArpMode[(size_t) c]      = cv.getProperty ("arpMode", "").toString();
+            meta->channelVelocityMode[(size_t) c] = cv.getProperty ("velocityMode", "").toString();
+            meta->channelHold[(size_t) c]         = cv.getProperty ("hold", "").toString();
+        }
     }
 
     out = p;

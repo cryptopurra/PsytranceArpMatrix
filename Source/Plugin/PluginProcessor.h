@@ -40,6 +40,11 @@ namespace ParamID
     inline juce::String channelVoice (int c) { return "ch" + juce::String (c + 1) + "Voice"; }
     inline juce::String channelGlide (int c) { return "ch" + juce::String (c + 1) + "Glide"; }
     inline juce::String channelMute (int c)  { return "ch" + juce::String (c + 1) + "Mute"; }
+    // per channel TIME / MODE / VELOCITY MODE / HOLD (the global controls edit the selected channel)
+    inline juce::String channelDiv (int c)     { return "ch" + juce::String (c + 1) + "Div"; }
+    inline juce::String channelMode (int c)    { return "ch" + juce::String (c + 1) + "Mode"; }
+    inline juce::String channelVelMode (int c) { return "ch" + juce::String (c + 1) + "VelMode"; }
+    inline juce::String channelHold (int c)    { return "ch" + juce::String (c + 1) + "Hold"; }
     inline constexpr const char* muteAll     = "muteAll";
 }
 
@@ -104,6 +109,11 @@ public:
     void newVariation();                            // Melody Var
     void restoreOriginal();
     bool importMidi (const juce::File& f, int targetChannel, juce::String& message);
+    /** Dropped on one channel row: every note of the file goes into that channel only. */
+    bool importMidiIntoChannel (const juce::File& f, int channel, juce::String& message);
+    /** Loads one channel of a preset into `channel` (same channel of the preset if it is active,
+        otherwise its first active one), transposed into the current key. */
+    bool loadChannelPreset (const juce::File& f, int channel, juce::String& message);
 
     //=== Presets / files =========================================================
     PresetManager& getPresetManager() noexcept      { return presets; }
@@ -177,7 +187,12 @@ private:
     void pushUndo (bool coalesce);
     void restoreSnapshot (const ChannelMatrix& m);
     bool wasBypassed = false;
-    std::array<std::atomic<float>*, kNumChannels> octParams {}, voiceParams {}, glideParams {}, muteParams {};
+    std::array<std::atomic<float>*, kNumChannels> octParams {}, voiceParams {}, glideParams {}, muteParams {},
+                                                  divParams {}, modeParams {}, velModeParams {}, holdParams {};
+    std::atomic<bool> proxyDirty { false };
+    void copyProxiesToChannel (int channel);   // global TIME/MODE/VEL/HOLD -> that channel
+    void showChannelInProxies (int channel);   // that channel -> global controls
+    void applyChannelMeta (int channel, const PresetMeta& meta, int sourceChannel);
     std::atomic<float>* muteAllParam = nullptr;
 
     // note preview (piano-roll keyboard / note clicks): message thread -> audio thread

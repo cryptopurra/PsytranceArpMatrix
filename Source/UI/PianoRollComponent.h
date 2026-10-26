@@ -128,7 +128,7 @@ class PianoRollWindow final : public juce::DocumentWindow
 public:
     PianoRollWindow (PluginProcessor& p, int channelIndex, juce::Colour colour, std::function<void()> closeCallback)
         : juce::DocumentWindow ("Psytrance Arp Matrix  -  CH " + juce::String (channelIndex + 1) + "  piano roll",
-                                juce::Colour (0xff08111b), juce::DocumentWindow::closeButton),
+                                juce::Colour (0xff08111b), juce::DocumentWindow::allButtons),
           onClose (std::move (closeCallback))
     {
         auto* r = new PianoRollComponent (p, channelIndex);
@@ -137,7 +137,7 @@ public:
         roll = r;
         setContentOwned (r, true);
         setUsingNativeTitleBar (true);
-        setResizable (true, false);
+        setResizable (true, true);   // bottom-right corner resizer as well (+ maximise button)
         setResizeLimits (420, 220, 4000, 2500);
         setAlwaysOnTop (true);  // stays above the host window while the plugin is in use
         centreWithSize (getWidth(), getHeight());
