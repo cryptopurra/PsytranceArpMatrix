@@ -39,6 +39,8 @@ namespace ParamID
     inline juce::String channelOct (int c)   { return "ch" + juce::String (c + 1) + "Oct"; }
     inline juce::String channelVoice (int c) { return "ch" + juce::String (c + 1) + "Voice"; }
     inline juce::String channelGlide (int c) { return "ch" + juce::String (c + 1) + "Glide"; }
+    inline juce::String channelMute (int c)  { return "ch" + juce::String (c + 1) + "Mute"; }
+    inline constexpr const char* muteAll     = "muteAll";
 }
 
 /** MIDI generator plugin. Owns:
@@ -93,6 +95,10 @@ public:
     void beginGesture() noexcept                    { gestureOpen = true; gestureCaptured = false; }
     void endGesture() noexcept                      { gestureOpen = false; }
 
+    /** Plays a note immediately on the channel's synth (velocity 0 = note off). */
+    void previewNote (int matrixChannel, int note, int velocity);
+    juce::Array<juce::File> exportFilesFor (bool multitrack, const juce::File& dir);
+
     void generate();                                // Generate / Roll dice
     void resetToSingleArp();                        // Reset: Single Arp Mode
     void newVariation();                            // Melody Var
@@ -129,6 +135,7 @@ public:
         std::array<float, kNumChannels> laneSize { 0.28f, 0.28f, 0.28f, 0.28f }; // lane height (fraction)
         int sizeIndex = 2;                                  // index into the SIZE menu (M)
         int selectedChannel = 0;                            // channel the bar locks apply to
+        int varTarget = 0;                                  // NEW VARIATION target: 0 = all active, 1..4 = channel
     } ui;
 
 private:
@@ -161,7 +168,14 @@ private:
     void pushUndo (bool coalesce);
     void restoreSnapshot (const ChannelMatrix& m);
     bool wasBypassed = false;
-    std::array<std::atomic<float>*, kNumChannels> octParams {}, voiceParams {}, glideParams {};
+    std::array<std::atomic<float>*, kNumChannels> octParams {}, voiceParams {}, glideParams {}, muteParams {};
+    std::atomic<float>* muteAllParam = nullptr;
+
+    // note preview (piano-roll keyboard / note clicks): message thread -> audio thread
+    struct PreviewEvent { int channel; int note; int velocity; };
+    juce::AbstractFifo previewFifo { 64 };
+    std::array<PreviewEvent, 64> previewEvents {};
+    std::array<int, 128> previewSounding {}; // per note: MIDI channel + 1 while a preview note is on
     bool suppressListener = false;
     juce::String currentPresetName = "Init";
     KeyDetection importKey;

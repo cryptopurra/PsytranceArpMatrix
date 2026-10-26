@@ -38,7 +38,7 @@
 |---|---|
 | `key` / `rootNote` | nome nota (`"F#"`, `"Gb"`) e/o pitch class 0-11; `rootNote` ha la precedenza |
 | `scale` | uno dei nomi di `ScaleLibrary` (es. `"Phrygian Dominant"`, `"In Sen"`) |
-| `style` | `Rolling Bass`, `Acid`, `FM Lead`, `Lead Synth`, `Rhythmics / Stabs` |
+| `style` | `Rolling Bass`, `Acid`, `FM Lead`, `Lead Synth`, `Stabs`, `Arpeggio`, `Rhythmics` (il vecchio `Rhythmics / Stabs` viene letto come `Stabs`) |
 | `channels` | sempre 4 elementi; `enabled` = stato dello switch di attivazione |
 | `steps` | `length` elementi (16 per una battuta, max 64). Se ce ne sono meno, vengono ripetuti in loop |
 | `note` | numero di nota MIDI assoluto (0-127) |

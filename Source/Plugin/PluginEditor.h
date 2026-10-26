@@ -89,7 +89,12 @@ private:
     /** Bar button: left click shows the bar, right click locks it for the selected channel. */
     struct PageButton final : public juce::TextButton
     {
-        std::function<void()> onRightClick;
+        std::function<void()> onRightClick, onDoubleClick;
+        void mouseDoubleClick (const juce::MouseEvent& e) override
+        {
+            if (! e.mods.isPopupMenu() && onDoubleClick)
+                onDoubleClick();
+        }
         void mouseDown (const juce::MouseEvent& e) override
         {
             if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); return; }
@@ -104,6 +109,9 @@ private:
     std::array<PageButton, 4> pageButtons;
     juce::Label pagesCaption;
     void updatePageButtons();
+    void showBarMenu (int bar);
+    bool hasBarClipboard = false;
+    std::array<Step, 16> barClipboard {};
     int page = 0;
 
     // matrix
@@ -113,7 +121,8 @@ private:
     juce::ComboBox divisionBox, modeBox, velModeBox, holdBox, varStyleBox, octaveBox, octRangeBox;
     juce::Slider swingKnob, gateKnob, velocityKnob, varAmountKnob;
     juce::ToggleButton keyFollowToggle, freeRunToggle, multitrackToggle;
-    juce::ComboBox outputBox, sizeBox;
+    juce::ComboBox outputBox, sizeBox, varTargetBox;
+    juce::ToggleButton muteAllToggle;
     static juce::StringArray sizeNames();
     static juce::Point<int> sizeFor (int index);
     juce::TextButton newVarButton { "NEW VARIATION" }, originalButton { "ORIGINAL" }, saveMidiButton { "SAVE MIDI" };

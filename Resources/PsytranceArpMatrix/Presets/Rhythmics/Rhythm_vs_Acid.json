@@ -1,0 +1,1233 @@
+{
+  "format": "PsytranceArpMatrix",
+  "version": 1,
+  "name": "Rhythm_vs_Acid",
+  "category": "Rhythmics",
+  "author": "Psytrance Arp Matrix (factory)",
+  "description": "Rhythmic pulse answering an acid line",
+  "bpm": 144.0,
+  "key": "A",
+  "rootNote": 9,
+  "scale": "Phrygian",
+  "length": 32,
+  "timeDivision": "1/16",
+  "swing": 0.0,
+  "gate": 1.0,
+  "lock": true,
+  "arpMode": "Step",
+  "velocityMode": "Step",
+  "channels": [
+    {
+      "index": 1,
+      "enabled": true,
+      "style": "Acid",
+      "midiChannel": 1,
+      "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "steps": [
+        {
+          "note": 45,
+          "velocity": 92,
+          "gate": 0.435,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 91,
+          "gate": 0.507,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 91,
+          "gate": 0.42,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 124,
+          "gate": 0.527,
+          "slide": true,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 124,
+          "gate": 0.712,
+          "slide": true,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 124,
+          "gate": 0.516,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 88,
+          "gate": 0.512,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 97,
+          "gate": 0.524,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 101,
+          "gate": 0.647,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 101,
+          "gate": 0.38,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 91,
+          "gate": 0.556,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 101,
+          "gate": 0.397,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 69,
+          "velocity": 124,
+          "gate": 0.393,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 92,
+          "gate": 0.548,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 64,
+          "velocity": 89,
+          "gate": 0.608,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 92,
+          "gate": 0.435,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 91,
+          "gate": 0.507,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 91,
+          "gate": 0.42,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 124,
+          "gate": 0.527,
+          "slide": true,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 124,
+          "gate": 0.712,
+          "slide": true,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 124,
+          "gate": 0.516,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 88,
+          "gate": 0.512,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 97,
+          "gate": 0.524,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 92,
+          "gate": 0.435,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 91,
+          "gate": 0.507,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 91,
+          "gate": 0.42,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 124,
+          "gate": 0.527,
+          "slide": true,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 124,
+          "gate": 0.712,
+          "slide": true,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 124,
+          "gate": 0.516,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 88,
+          "gate": 0.512,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 33,
+          "velocity": 97,
+          "gate": 0.524,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "enabled": true,
+      "style": "Rhythmics",
+      "midiChannel": 2,
+      "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "steps": [
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 91,
+          "gate": 0.237,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 122,
+          "gate": 0.178,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 79,
+          "gate": 0.319,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 85,
+          "gate": 0.163,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 122,
+          "gate": 0.306,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 80,
+          "gate": 0.237,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 87,
+          "gate": 0.316,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 74,
+          "gate": 0.296,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 87,
+          "gate": 0.171,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 91,
+          "gate": 0.237,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 122,
+          "gate": 0.178,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 79,
+          "gate": 0.319,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 85,
+          "gate": 0.163,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 122,
+          "gate": 0.306,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 91,
+          "gate": 0.237,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 122,
+          "gate": 0.178,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 79,
+          "gate": 0.319,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 57,
+          "velocity": 85,
+          "gate": 0.163,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 45,
+          "velocity": 122,
+          "gate": 0.306,
+          "slide": false,
+          "accent": true,
+          "active": true,
+          "chord": 1
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "enabled": false,
+      "style": "Lead Synth",
+      "midiChannel": 3,
+      "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "steps": [
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "enabled": false,
+      "style": "Stabs",
+      "midiChannel": 4,
+      "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "steps": [
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        }
+      ]
+    }
+  ]
+}

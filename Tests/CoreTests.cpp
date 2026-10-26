@@ -198,6 +198,43 @@ public:
             expect (lk.isBarLocked (0, 1) && ! lk.isBarLocked (0, 0));
         }
 
+        beginTest ("bar copy / paste / mute and call-response roles");
+        {
+            ChannelMatrix bm;
+            bm.setSeed (41);
+            bm.initialiseDefault();                         // length 16
+            const auto bar0 = bm.copyBar (0, 0);
+            bm.pasteBar (0, 3, bar0);                       // 49-64: extends the length
+            expectEquals (bm.getLength(), 64);
+            for (int i = 0; i < 16; ++i)
+                expect (bm.getPattern().channels[0].steps[(size_t) (48 + i)] == bar0[(size_t) i]);
+            bm.setBarMuted (0, 3, true);
+            expect (bm.isBarMuted (0, 3));
+            bm.regenerateChannel (0);
+            expect (bm.isBarMuted (0, 3));                  // mute survives regeneration
+
+            bm.setChannelEnabled (1, true);
+            expect (! bm.isAnswer (0) && bm.isAnswer (1));  // auto: first active asks
+            bm.setRole (1, 1);                              // channel 2 becomes the call
+            expect (bm.isAnswer (0) && ! bm.isAnswer (1));
+            bm.setRole (0, 1);
+            expect (! bm.isAnswer (0));
+        }
+
+        beginTest ("arpeggio and rhythmic styles");
+        {
+            ChannelMatrix am;
+            am.setSeed (5);
+            am.setChannelStyle (0, GeneratorStyle::Arpeggio, false);
+            am.setChannelStyle (1, GeneratorStyle::Rhythmic, false);
+            am.initialiseDefault();
+            am.setChannelEnabled (1, true);
+            expect (am.getPattern().channels[0].countActive() >= 12);   // dense arpeggio
+            expect (am.getPattern().channels[1].countActive() >= 3);
+            expectEquals (juce::String (styleName (GeneratorStyle::Rhythmic)), juce::String ("Rhythmics"));
+            expect (styleFromName ("Rhythmics / Stabs") == GeneratorStyle::RhythmStab);
+        }
+
         beginTest ("disable keeps data, re-enable regenerates complementary part");
         m.setChannelEnabled (3, false);
         expectEquals (m.getPattern().numEnabled(), 3);

@@ -1,14 +1,14 @@
 {
   "format": "PsytranceArpMatrix",
   "version": 1,
-  "name": "Bass_Stab_Groove",
-  "category": "Stabs_Rhythmics",
+  "name": "Offbeat_Rhythm_PhrygDom",
+  "category": "Rhythmics",
   "author": "Psytrance Arp Matrix (factory)",
-  "description": "Rolling bass with stab punctuation",
-  "bpm": 145.0,
-  "key": "D",
-  "rootNote": 2,
-  "scale": "Phrygian",
+  "description": "Off-beat rhythmic layer",
+  "bpm": 146.0,
+  "key": "G",
+  "rootNote": 7,
+  "scale": "Phrygian Dominant",
   "length": 16,
   "timeDivision": "1/16",
   "swing": 0.0,
@@ -20,9 +20,15 @@
     {
       "index": 1,
       "enabled": true,
-      "style": "Rolling Bass",
+      "style": "Rhythmics",
       "midiChannel": 1,
       "length": 16,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 60,
@@ -34,63 +40,99 @@
           "chord": 1
         },
         {
-          "note": 38,
-          "velocity": 101,
-          "gate": 0.754,
+          "note": 55,
+          "velocity": 93,
+          "gate": 0.383,
           "slide": false,
           "accent": false,
           "active": true,
           "chord": 1
         },
         {
-          "note": 38,
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 67,
+          "velocity": 100,
+          "gate": 0.269,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 67,
+          "velocity": 73,
+          "gate": 0.177,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 67,
+          "velocity": 79,
+          "gate": 0.378,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 67,
+          "velocity": 85,
+          "gate": 0.391,
+          "slide": false,
+          "accent": false,
+          "active": true,
+          "chord": 1
+        },
+        {
+          "note": 67,
           "velocity": 99,
-          "gate": 0.789,
+          "gate": 0.326,
           "slide": false,
           "accent": false,
           "active": true,
           "chord": 1
         },
         {
-          "note": 38,
-          "velocity": 105,
-          "gate": 0.759,
+          "note": 79,
+          "velocity": 98,
+          "gate": 0.363,
           "slide": false,
           "accent": false,
           "active": true,
           "chord": 1
         },
         {
-          "note": 60,
-          "velocity": 100,
-          "gate": 0.5,
-          "slide": false,
-          "accent": false,
-          "active": false,
-          "chord": 1
-        },
-        {
-          "note": 38,
-          "velocity": 101,
-          "gate": 0.592,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 1
-        },
-        {
-          "note": 38,
-          "velocity": 94,
-          "gate": 0.604,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 1
-        },
-        {
-          "note": 38,
-          "velocity": 104,
-          "gate": 0.725,
+          "note": 67,
+          "velocity": 88,
+          "gate": 0.185,
           "slide": false,
           "accent": false,
           "active": true,
@@ -106,27 +148,9 @@
           "chord": 1
         },
         {
-          "note": 38,
+          "note": 55,
           "velocity": 95,
-          "gate": 0.677,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 1
-        },
-        {
-          "note": 38,
-          "velocity": 99,
-          "gate": 0.642,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 1
-        },
-        {
-          "note": 38,
-          "velocity": 103,
-          "gate": 0.573,
+          "gate": 0.34,
           "slide": false,
           "accent": false,
           "active": true,
@@ -142,27 +166,9 @@
           "chord": 1
         },
         {
-          "note": 38,
-          "velocity": 102,
-          "gate": 0.579,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 1
-        },
-        {
-          "note": 60,
-          "velocity": 100,
-          "gate": 0.5,
-          "slide": false,
-          "accent": false,
-          "active": false,
-          "chord": 1
-        },
-        {
-          "note": 38,
-          "velocity": 100,
-          "gate": 0.606,
+          "note": 55,
+          "velocity": 82,
+          "gate": 0.208,
           "slide": false,
           "accent": false,
           "active": true,
@@ -172,21 +178,18 @@
     },
     {
       "index": 2,
-      "enabled": true,
-      "style": "Rhythmics / Stabs",
+      "enabled": false,
+      "style": "FM Lead",
       "midiChannel": 2,
       "length": 16,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
-          "note": 62,
-          "velocity": 90,
-          "gate": 0.268,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 3
-        },
-        {
           "note": 60,
           "velocity": 100,
           "gate": 0.5,
@@ -205,15 +208,6 @@
           "chord": 1
         },
         {
-          "note": 62,
-          "velocity": 127,
-          "gate": 0.228,
-          "slide": false,
-          "accent": true,
-          "active": true,
-          "chord": 2
-        },
-        {
           "note": 60,
           "velocity": 100,
           "gate": 0.5,
@@ -221,15 +215,6 @@
           "accent": false,
           "active": false,
           "chord": 1
-        },
-        {
-          "note": 62,
-          "velocity": 102,
-          "gate": 0.242,
-          "slide": false,
-          "accent": false,
-          "active": true,
-          "chord": 3
         },
         {
           "note": 60,
@@ -304,22 +289,49 @@
           "chord": 1
         },
         {
-          "note": 63,
-          "velocity": 102,
-          "gate": 0.273,
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
           "slide": false,
           "accent": false,
-          "active": true,
-          "chord": 3
+          "active": false,
+          "chord": 1
         },
         {
-          "note": 63,
-          "velocity": 127,
-          "gate": 0.388,
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
           "slide": false,
-          "accent": true,
-          "active": true,
-          "chord": 2
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
+        },
+        {
+          "note": 60,
+          "velocity": 100,
+          "gate": 0.5,
+          "slide": false,
+          "accent": false,
+          "active": false,
+          "chord": 1
         }
       ]
     },
@@ -329,6 +341,12 @@
       "style": "Lead Synth",
       "midiChannel": 3,
       "length": 16,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 60,
@@ -479,9 +497,15 @@
     {
       "index": 4,
       "enabled": false,
-      "style": "Rhythmics / Stabs",
+      "style": "Stabs",
       "midiChannel": 4,
       "length": 16,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 60,

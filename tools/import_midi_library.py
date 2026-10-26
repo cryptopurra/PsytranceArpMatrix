@@ -31,18 +31,20 @@ from scales import NOTE_NAMES, SCALES, detect_key  # noqa: E402
 CATEGORY_FOLDER = {
     "bass": "Bassline_Rolling",
     "acid": "Acid_Grooves",
-    "arp": "Melodic_Arps",
+    "arp": "Arpeggios",
     "lead": "Melodic_Leads",
-    "stab": "Stabs_Rhythmics",
+    "stab": "Stabs",
+    "rhythmic": "Rhythmics",
 }
 STYLE = {
     "bass": "Rolling Bass",
     "acid": "Acid",
-    "arp": "FM Lead",
+    "arp": "Arpeggio",
     "lead": "Lead Synth",
-    "stab": "Rhythmics / Stabs",
+    "stab": "Stabs",
+    "rhythmic": "Rhythmics",
 }
-DEFAULT_STYLES = ["Acid", "FM Lead", "Lead Synth", "Rhythmics / Stabs"]
+DEFAULT_STYLES = ["Acid", "FM Lead", "Lead Synth", "Stabs"]
 MAX_STEPS = 64
 
 

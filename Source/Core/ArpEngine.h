@@ -24,7 +24,8 @@ struct ArpParams
     float internalBpm    = 142.0f;
     std::array<int, kNumChannels> channelTranspose {}; // per-channel transposition (semitones, octave x 12)
     std::array<VoiceMode, kNumChannels> voiceMode { VoiceMode::Poly, VoiceMode::Poly, VoiceMode::Poly, VoiceMode::Poly };
-    std::array<int, kNumChannels> glide { -1, -1, -1, -1 }; // portamento time sent as CC5 (0..127), -1 = don't send
+    std::array<int, kNumChannels> glide { -1, -1, -1, -1 };
+    std::array<bool, kNumChannels> channelMuted {};      // per-channel MUTE (non destructive) // portamento time sent as CC5 (0..127), -1 = don't send
 };
 
 /** Real-time engine: turns the pattern + held keys + host position into MIDI.

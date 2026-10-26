@@ -21,7 +21,9 @@ enum class GeneratorStyle : int
     Acid,             // TB-303 style 16ths, accents, slides, octave jumps
     FMLead,           // fast incisive arp / FM lead, off-beat counterpoint
     LeadSynth,        // hypnotic evolving lead, longer legato notes
-    RhythmStab,       // short chord stabs, accents on tension points
+    RhythmStab,       // "Stabs": short chord stabs, accents on tension points
+    Arpeggio,         // classic broken-chord arpeggios over the scale chords (up / down / pendulum)
+    Rhythmic,         // "Rhythmics": single-note rhythmic pulses (root / fifth), syncopated 16ths
     numStyles
 };
 
@@ -118,6 +120,7 @@ struct ChannelPattern
     int            midiChannel = 1;    // 1..16 output channel
     int            length     = 16;    // 1..kMaxSteps
     bool           userEdited = false; // manual edits are preserved on re-enable
+    std::array<bool, kMaxSteps / 16> barMuted {}; // muted bars stay in the pattern but do not play
     std::array<Step, kMaxSteps> steps {};
 
     int countActive() const noexcept

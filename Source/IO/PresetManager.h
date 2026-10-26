@@ -8,7 +8,7 @@ namespace pam
 
     <Documents>/PsytranceArpMatrix/
         Presets/
-            Bassline_Rolling/  Acid_Grooves/  Melodic_Leads/  Stabs_Rhythmics/
+            Bassline_Rolling/  Acid_Grooves/  Melodic_Leads/  Arpeggios/  Stabs/  Rhythmics/
         Sequences/
             User_Exported/     <- one-click "Save" target
             Drag_Cache/        <- MIDI files created for drag & drop (auto-cleaned)
@@ -16,7 +16,7 @@ namespace pam
 class PresetManager
 {
 public:
-    static juce::StringArray factoryCategories() { return { "Bassline_Rolling", "Acid_Grooves", "Melodic_Leads", "Stabs_Rhythmics" }; }
+    static juce::StringArray factoryCategories() { return { "Bassline_Rolling", "Acid_Grooves", "Melodic_Leads", "Arpeggios", "Stabs", "Rhythmics" }; }
 
     explicit PresetManager (juce::File rootDirectory = defaultRootDirectory());
 

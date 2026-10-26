@@ -40,8 +40,34 @@ ChannelStripComponent::ChannelStripComponent (PluginProcessor& p, int c, juce::C
                             "Off = nothing is sent. MIDI-learn CC5 in the synth if it does not respond by default.");
     addAndMakeVisible (glideSlider);
 
+    muteButton.setClickingTogglesState (true);
+    muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffd64545));
+    muteButton.onClick = [this] { repaint(); };
+    muteButton.setTooltip ("Mute this channel (no MIDI out, the pattern is kept; turning CH off/on instead makes a new one)");
+    addAndMakeVisible (muteButton);
+
+    roleBox.addItemList ({ "AUTO", "CALL Q", "ANSW A" }, 1);
+    roleBox.setScrollWheelEnabled (true);
+    roleBox.setTooltip ("Call & response (Q = question/domanda, A = answer/risposta): CALL asks the musical question, "
+                        "ANSW replies in the gaps and resolves on the tonic. AUTO: the first active channel asks, the "
+                        "others answer. Changing it regenerates the channel.");
+    roleBox.onChange = [this]
+    {
+        const int role = roleBox.getSelectedItemIndex();
+        if (role < 0 || role == proc.getMatrix().getRole (channel))
+            return;
+        proc.editMatrix ([c = channel, role] (ChannelMatrix& m)
+        {
+            m.setRole (c, role);
+            if (m.isChannelEnabled (c))
+                m.regenerateChannel (c); // hear the new role straight away
+        });
+    };
+    addAndMakeVisible (roleBox);
+
     auto& state = proc.getState();
     onAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, ParamID::channelOn (c), onButton);
+    muteAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (state, ParamID::channelMute (c), muteButton);
     styleAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelStyle (c), styleBox);
     midiAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelMidi (c), midiBox);
     octAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (state, ParamID::channelOct (c), octBox);
@@ -117,14 +143,14 @@ void ChannelStripComponent::mouseDown (const juce::MouseEvent&)
 void ChannelStripComponent::updateViewButtons()
 {
     const bool pr = isPianoRoll();
-    viewButton.setButtonText (pr ? "PIANO ROLL" : "STEPS");
+    viewButton.setButtonText (pr ? "PIANO" : "STEPS");
     const int l = proc.ui.lane[(size_t) channel];
-    laneButton.setButtonText (l == 0 ? "LANE OFF" : (l == 1 ? "LANE VEL" : "LANE GATE"));
+    laneButton.setButtonText (l == 0 ? "NO LANE" : (l == 1 ? "VEL" : "GATE"));
     laneButton.setEnabled (pr);
     roll.setLane ((PianoRollComponent::Lane) l);
     grid.setVisible (! pr && ! compact);
     roll.setVisible (pr && ! compact);
-    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &laneButton, &glideSlider })
+    for (auto* b : std::initializer_list<juce::Component*> { &regenButton, &varButton, &velButton, &gateButton, &laneButton, &glideSlider, &roleBox })
         b->setVisible (! compact);
 }
 
@@ -136,6 +162,12 @@ void ChannelStripComponent::refresh()
     stats.setText (juce::String (ch.countActive()) + (ch.userEdited ? " nt*" : " nt"), juce::dontSendNotification);
     stats.setTooltip (juce::String (ch.countActive()) + " notes" + (ch.userEdited ? " (edited)" : "")
                       + (master ? ", MIDI OUTPUT = Master: sent on channel 1" : ", sent on MIDI channel " + juce::String (ch.midiChannel)));
+    // role: show what AUTO currently means for this channel
+    const int role = proc.getMatrix().getRole (channel);
+    const bool answer = proc.getMatrix().isAnswer (channel);
+    roleBox.changeItemText (1, answer ? "AUTO A" : "AUTO Q");
+    roleBox.setSelectedItemIndex (role, juce::dontSendNotification);
+
     const bool on = ch.enabled;
     for (auto* b : { &regenButton, &varButton, &velButton, &gateButton })
         b->setEnabled (on);
@@ -154,6 +186,17 @@ void ChannelStripComponent::paint (juce::Graphics& g)
         g.setColour (colour.withAlpha (0.7f));
         g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 6.0f, 1.2f);
     }
+
+}
+
+void ChannelStripComponent::paintOverChildren (juce::Graphics& g)
+{
+    if (muteButton.getToggleState())
+    {
+        // muted: dim the grid area (controls stay readable)
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.fillRect (grid.isVisible() ? grid.getBounds() : roll.getBounds());
+    }
 }
 
 void ChannelStripComponent::resized()
@@ -169,21 +212,24 @@ void ChannelStripComponent::resized()
     {
         // collapsed row: only the essentials on one line, no grid
         auto row = r.withSizeKeepingCentre (r.getWidth(), juce::jmin (24, r.getHeight()));
-        onButton.setBounds (row.removeFromLeft (70));
-        styleBox.setBounds (row.removeFromLeft (150).reduced (2, 0));
-        midiBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
-        octBox.setBounds (row.removeFromLeft (84).reduced (2, 0));
-        voiceBox.setBounds (row.removeFromLeft (92).reduced (2, 0));
-        viewButton.setBounds (row.removeFromLeft (100).reduced (2, 0));
+        onButton.setBounds (row.removeFromLeft (66));
+        muteButton.setBounds (row.removeFromLeft (28).reduced (2, 0));
+        styleBox.setBounds (row.removeFromLeft (140).reduced (2, 0));
+        midiBox.setBounds (row.removeFromLeft (76).reduced (2, 0));
+        octBox.setBounds (row.removeFromLeft (80).reduced (2, 0));
+        voiceBox.setBounds (row.removeFromLeft (90).reduced (2, 0));
+        viewButton.setBounds (row.removeFromLeft (96).reduced (2, 0));
         row.removeFromLeft (8);
         stats.setBounds (row);
         return;
     }
 
-    auto left = r.removeFromLeft (236);
+    auto left = r.removeFromLeft (270);
 
     auto row1 = left.removeFromTop (24);
-    onButton.setBounds (row1.removeFromLeft (70));
+    onButton.setBounds (row1.removeFromLeft (66));
+    muteButton.setBounds (row1.removeFromLeft (28).reduced (2, 1));
+    row1.removeFromLeft (2);
     styleBox.setBounds (row1);
 
     left.removeFromTop (4);
@@ -196,17 +242,18 @@ void ChannelStripComponent::resized()
 
     left.removeFromTop (4);
     auto row3 = left.removeFromTop (22);
-    midiBox.setBounds (row3.removeFromLeft (70));
+    midiBox.setBounds (row3.removeFromLeft (72));
     row3.removeFromLeft (3);
-    octBox.setBounds (row3.removeFromLeft (76));
+    octBox.setBounds (row3.removeFromLeft (78));
     row3.removeFromLeft (3);
     voiceBox.setBounds (row3);
     stats.setBounds ({});
 
     left.removeFromTop (4);
     auto row4 = left.removeFromTop (22);
-    viewButton.setBounds (row4.removeFromLeft (78).reduced (1, 0));
-    laneButton.setBounds (row4.removeFromLeft (78).reduced (1, 0));
+    viewButton.setBounds (row4.removeFromLeft (60).reduced (1, 0));
+    laneButton.setBounds (row4.removeFromLeft (52).reduced (1, 0));
+    roleBox.setBounds (row4.removeFromLeft (94).reduced (1, 0));
     glideSlider.setBounds (row4.reduced (1, 1));
 
     r.removeFromLeft (8);

@@ -272,7 +272,7 @@ void ArpEngine::triggerStep (juce::int64 k, int offset, double samplesPerStep,
         playingStep[(size_t) c].store (s);
 
         const auto& st = ch.steps[(size_t) s];
-        if (! st.active || (! keys && ! p.playWithoutKeys))
+        if (! st.active || ch.barMuted[(size_t) (s / 16)] || p.channelMuted[(size_t) c] || (! keys && ! p.playWithoutKeys))
             continue;
 
         int keyVel = keys ? lastVel : st.velocity;

@@ -23,6 +23,9 @@ namespace pam
             hold the wheel + move     pan the view (time and pitch)
             Ctrl + wheel              horizontal zoom
             Shift + wheel             vertical zoom
+    Keys (selected notes):            arrows left/right = move one step (Shift: one bar),
+                                      up/down = one semitone (Shift: one octave), Delete = delete
+    Click on the keyboard strip or on a note: the note is played on the channel's synth.
     Lane (bottom, can be hidden):     drag to draw velocity or gate per step */
 class PianoRollComponent final : public juce::Component
 {
@@ -45,6 +48,7 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    bool keyPressed (const juce::KeyPress&) override;
 
 private:
     static constexpr int keyboardWidth = 34;
@@ -89,6 +93,9 @@ private:
     int lastDragNote = 60, lastDStep = 0, lastDNote = 0;
     std::array<Step, kMaxSteps> dragOrigin {};
     std::bitset<kMaxSteps> selected, dragSelection;
+    int previewingNote = -1;
+    void startPreview (int note);
+    void stopPreview();
     juce::Point<float> selectStart;
     juce::Rectangle<float> selectRect;
 };

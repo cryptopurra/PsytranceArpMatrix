@@ -23,6 +23,12 @@
       "style": "Acid",
       "midiChannel": 1,
       "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 44,
@@ -320,6 +326,12 @@
       "style": "FM Lead",
       "midiChannel": 2,
       "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 59,
@@ -617,6 +629,12 @@
       "style": "Lead Synth",
       "midiChannel": 3,
       "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 59,
@@ -911,9 +929,15 @@
     {
       "index": 4,
       "enabled": false,
-      "style": "Rhythmics / Stabs",
+      "style": "Stabs",
       "midiChannel": 4,
       "length": 32,
+      "mutedBars": [
+        false,
+        false,
+        false,
+        false
+      ],
       "steps": [
         {
           "note": 59,

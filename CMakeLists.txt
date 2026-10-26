@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PsytranceArpMatrix VERSION 0.6.0 LANGUAGES C CXX)
+project(PsytranceArpMatrix VERSION 0.7.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -78,7 +78,7 @@ if(PAM_BUILD_PLUGIN)
         NEEDS_MIDI_INPUT            TRUE
         NEEDS_MIDI_OUTPUT           TRUE
         IS_MIDI_EFFECT              ${PAM_IS_MIDI_EFFECT}
-        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         COPY_PLUGIN_AFTER_BUILD     FALSE
         VST3_CATEGORIES             Instrument Generator
         AU_MAIN_TYPE                kAudioUnitType_MusicDevice)

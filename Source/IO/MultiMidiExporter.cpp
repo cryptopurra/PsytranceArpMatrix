@@ -71,7 +71,7 @@ juce::MidiMessageSequence MultiMidiExporter::buildChannelSequence (const Pattern
     for (int k = 0; k < totalSteps; ++k)
     {
         const auto& st = ch.steps[(size_t) (k % len)];
-        if (! st.active)
+        if (! st.active || ch.barMuted[(size_t) ((k % len) / 16)])
             continue;
 
         const double start = k * ticksPerStep + ((k % 2) == 1 ? swingTicks : 0.0);

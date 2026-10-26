@@ -55,6 +55,18 @@ public:
     void setBarLocked (int channel, int bar, bool locked) noexcept;
     bool isBarLocked (int channel, int bar) const noexcept;
     bool anyBarLocked (int channel) const noexcept;
+
+    /** Bar clipboard helpers (16 steps). Pasting beyond the current length extends it. */
+    std::array<Step, 16> copyBar (int channel, int bar) const;
+    void pasteBar (int channel, int bar, const std::array<Step, 16>& steps);
+    void clearBar (int channel, int bar);
+    void setBarMuted (int channel, int bar, bool muted);
+    bool isBarMuted (int channel, int bar) const noexcept;
+
+    /** Call & response role: 0 = automatic (first active channel asks), 1 = call, 2 = answer. */
+    void setRole (int channel, int role) noexcept;
+    int  getRole (int channel) const noexcept       { return roles[(size_t) juce::jlimit (0, kNumChannels - 1, channel)]; }
+    bool isAnswer (int channel) const noexcept;     // effective role used by the generator
     void setChannelMidiChannel (int channel, int midiChannel);
 
     //=== editing ================================================================
@@ -83,6 +95,7 @@ private:
     std::array<bool, kNumChannels> everGenerated {};
     std::array<int, kNumChannels> octaves {};
     std::array<std::array<bool, kMaxSteps / 16>, kNumChannels> barLocks {};
+    std::array<int, kNumChannels> roles {};
     bool lock = true;
     float density = 1.0f;
     int version = 0;

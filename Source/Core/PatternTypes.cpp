@@ -4,7 +4,7 @@
 
 namespace pam
 {
-static const char* const kStyleNames[] = { "Rolling Bass", "Acid", "FM Lead", "Lead Synth", "Rhythmics / Stabs" };
+static const char* const kStyleNames[] = { "Rolling Bass", "Acid", "FM Lead", "Lead Synth", "Stabs", "Arpeggio", "Rhythmics" };
 
 const char* styleName (GeneratorStyle s) noexcept
 {
@@ -18,6 +18,9 @@ GeneratorStyle styleFromName (const char* name) noexcept
         for (int i = 0; i < (int) GeneratorStyle::numStyles; ++i)
             if (std::strcmp (name, kStyleNames[i]) == 0)
                 return (GeneratorStyle) i;
+
+    if (name != nullptr && std::strcmp (name, "Rhythmics / Stabs") == 0) // presets written before v0.7
+        return GeneratorStyle::RhythmStab;
 
     return GeneratorStyle::Acid;
 }

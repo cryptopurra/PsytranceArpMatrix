@@ -54,6 +54,8 @@ public:
                         int newRoot, const Scale& newScale) noexcept;
 
 private:
+    static ChannelPattern generateArpeggio (int channelIndex, int length, const GeneratorContext& ctx,
+                                            const InterlockMatrix& matrix, juce::Random& rng);
     static int pickNote (int prev, int low, int high, const GeneratorContext& ctx,
                          const StyleProfile& prof, juce::Random& rng, bool allowOctaveJump);
     static void finalisePhrase (ChannelPattern& ch, int from, int to, const GeneratorContext& ctx,

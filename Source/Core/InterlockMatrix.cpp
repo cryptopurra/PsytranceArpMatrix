@@ -58,6 +58,8 @@ int InterlockMatrix::priority (GeneratorStyle s) noexcept
         case GeneratorStyle::RollingBass: return 5;
         case GeneratorStyle::Acid:        return 4;
         case GeneratorStyle::RhythmStab:  return 3;
+        case GeneratorStyle::Rhythmic:    return 3;
+        case GeneratorStyle::Arpeggio:    return 2;
         case GeneratorStyle::FMLead:      return 2;
         case GeneratorStyle::LeadSynth:   return 1;
         case GeneratorStyle::numStyles:   break;
@@ -90,6 +92,15 @@ float InterlockMatrix::onsetWeight (int c, GeneratorStyle style, int step) const
                 w *= 0.4f;
             break;
         }
+
+        case GeneratorStyle::Rhythmic:
+            w *= busy == 0 ? 1.3f : (busy == 1 ? 0.9f : 0.4f);
+            break;
+
+        case GeneratorStyle::Arpeggio:
+            if (busy >= 2)
+                w *= 0.5f;
+            break;
 
         case GeneratorStyle::RhythmStab:
             // stabs punctuate: favour steps where the groove channels leave air

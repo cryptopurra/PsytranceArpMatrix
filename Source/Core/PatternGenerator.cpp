@@ -1,6 +1,8 @@
 #include "PatternGenerator.h"
 #include <cmath>
 #include <cstdlib>
+#include <iterator>
+#include <vector>
 
 namespace pam
 {
@@ -151,10 +153,76 @@ void PatternGenerator::finalisePhrase (ChannelPattern& ch, int from, int to, con
 }
 
 //==============================================================================
+ChannelPattern PatternGenerator::generateArpeggio (int c, int length, const GeneratorContext& ctx,
+                                                   const InterlockMatrix& matrix, juce::Random& rng)
+{
+    const auto& prof = StyleProfile::get (GeneratorStyle::Arpeggio);
+    const auto& scale = ScaleLibrary::get()[ctx.scaleIndex];
+    const int n = juce::jmax (1, scale.size());
+
+    ChannelPattern ch;
+    ch.style = GeneratorStyle::Arpeggio;
+    ch.length = juce::jlimit (1, kMaxSteps, length);
+    ch.midiChannel = c + 1;
+
+    // chord roots per bar (scale degrees): typical psytrance movements i / VI / VII / iv
+    static const int progressions[][4] = { { 0, 0, 5, 6 }, { 0, 5, 6, 0 }, { 0, 3, 4, 0 }, { 0, 0, 0, 0 },
+                                           { 0, 6, 5, 6 }, { 0, 1, 0, 6 } };
+    const auto& prog = progressions[rng.nextInt ((int) std::size (progressions))];
+
+    // shapes over the chord tones (0 = root, 1 = 3rd, 2 = 5th, 3 = octave, 4 = 10th, 5 = 12th)
+    static const std::vector<std::vector<int>> shapes = {
+        { 0, 1, 2, 3 },                    // up
+        { 3, 2, 1, 0 },                    // down
+        { 0, 1, 2, 3, 2, 1 },              // up / down
+        { 0, 2, 1, 3 },                    // broken
+        { 0, 2, 3, 2 },                    // root - fifth - octave pendulum
+        { 0, 1, 2, 3, 4, 5, 4, 3, 2, 1 },  // two-octave sweep
+        { 3, 0, 2, 0, 1, 0 },              // pedal on the root
+    };
+    const auto& shape = shapes[(size_t) rng.nextInt ((int) shapes.size())];
+    static const int toneDegrees[] = { 0, 2, 4, 7, 9, 11 }; // in scale steps (7 = octave for 7-note scales)
+
+    const int low = juce::jlimit (0, 108, prof.lowNote + ctx.octaveShift * 12);
+    int base = low;
+    while (((base - ctx.rootNote) % 12 + 12) % 12 != 0)
+        ++base; // root note at or above the register bottom
+
+    int idx = 0;
+    for (int s = 0; s < ch.length; ++s)
+    {
+        const int bar = s / 16, inBar = s % 16;
+        float prob = juce::jlimit (0.0f, 0.98f, prof.onsetProb[(size_t) inBar] * prof.density * ctx.density
+                                                * matrix.onsetWeight (c, GeneratorStyle::Arpeggio, inBar));
+        if (inBar % 4 == 0)
+            prob = juce::jmax (prob, 0.9f); // keep the pulse on the beats
+        auto& st = ch.steps[(size_t) s];
+        st.active = rng.nextFloat() < prob;
+        if (! st.active)
+            continue;
+
+        const int tone = shape[(size_t) (idx++ % (int) shape.size())];
+        const int deg = prog[bar % 4] + toneDegrees[tone] * n / 7; // scale-size aware
+        int note = ScaleLibrary::degreeToNote (deg, ctx.rootNote, scale, base);
+        if (ctx.lockToScale)
+            note = ScaleLibrary::quantize (note, ctx.rootNote, scale);
+        st.note = (int8_t) juce::jlimit (0, 127, note);
+        st.accent = inBar % 4 == 0 && rng.nextFloat() < 0.35f;
+        st.velocity = clampVel (st.accent ? prof.accentVelocity
+                                          : prof.baseVelocity + (rng.nextFloat() * 2.0f - 1.0f) * prof.velocitySpread);
+        st.gate = prof.gateMin + rng.nextFloat() * (prof.gateMax - prof.gateMin);
+        st.chord = 1;
+    }
+    return ch;
+}
+
 ChannelPattern PatternGenerator::generate (int c, GeneratorStyle style, int length,
                                            const GeneratorContext& ctx, const InterlockMatrix& matrix,
                                            juce::Random& rng)
 {
+    if (style == GeneratorStyle::Arpeggio)
+        return generateArpeggio (c, length, ctx, matrix, rng);
+
     const auto& prof = StyleProfile::get (style);
     const auto& scale = ScaleLibrary::get()[ctx.scaleIndex];
 

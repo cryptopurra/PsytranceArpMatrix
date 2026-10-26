@@ -10,9 +10,13 @@ static StyleProfile makeProfile (GeneratorStyle s)
     StyleProfile p;
     p.style = s;
 
+    // the new styles reuse the statistics of the closest analysed category
+    const GeneratorStyle dataStyle = s == GeneratorStyle::Arpeggio ? GeneratorStyle::FMLead
+                                   : s == GeneratorStyle::Rhythmic ? GeneratorStyle::RhythmStab
+                                                                   : s;
     for (auto& d : data::kProfiles)
     {
-        if (d.style != s)
+        if (d.style != dataStyle)
             continue;
 
         std::copy (std::begin (d.onsetProb),     std::end (d.onsetProb),     p.onsetProb.begin());
@@ -84,6 +88,29 @@ static StyleProfile makeProfile (GeneratorStyle s)
             p.accentVelocity = 127.0f;
             for (int i : { 3, 7, 11, 15 })  // steps 4, 8, 12, 16: tension points
                 p.forcedAccents[(size_t) i] = true;
+            break;
+
+        case GeneratorStyle::Arpeggio:
+            p.lowNote = 57; p.highNote = 84;
+            p.density = 1.15f;           // nearly every 16th
+            p.minAccentProb = 0.04f;
+            p.gateMin = 0.35f; p.gateMax = 0.6f;
+            p.baseVelocity = 94.0f; p.velocitySpread = 8.0f;
+            for (int i : { 0, 4, 8, 12 })
+                p.forcedAccents[(size_t) i] = false;
+            break;
+
+        case GeneratorStyle::Rhythmic:
+            p.lowNote = 48; p.highNote = 67;
+            p.density = 0.8f;
+            p.offbeatBias = true;
+            p.pitchVariety = 0.9f;       // root-heavy: a rhythm, not a melody
+            p.octaveJumpProb = 0.12f;    // occasional octave for movement
+            p.repeatScale = 1.0f;
+            p.intervalBlend = 0.2f;
+            p.gateMin = 0.15f; p.gateMax = 0.45f;
+            p.minAccentProb = 0.12f;
+            p.accentVelocity = 122.0f; p.baseVelocity = 86.0f; p.velocitySpread = 14.0f;
             break;
 
         case GeneratorStyle::numStyles:

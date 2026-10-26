@@ -19,6 +19,7 @@ public:
     void refresh();
     void resized() override;
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
 
 private:
     PluginProcessor& proc;
@@ -26,7 +27,8 @@ private:
     juce::Colour colour;
 
     juce::ToggleButton onButton;
-    juce::ComboBox styleBox, midiBox, octBox, voiceBox;
+    juce::ComboBox styleBox, midiBox, octBox, voiceBox, roleBox;
+    juce::TextButton muteButton { "M" };
     juce::Slider glideSlider;
     juce::TextButton regenButton { "Roll" }, varButton { "Var" }, velButton { "Vel" }, gateButton { "Gate" };
     juce::Label stats;
@@ -36,7 +38,7 @@ private:
     void updateViewButtons();
     bool compact = false;     // collapsed row (too small for the grid)
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAttachment, muteAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> styleAttachment, midiAttachment, octAttachment, voiceAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> glideAttachment;
 };

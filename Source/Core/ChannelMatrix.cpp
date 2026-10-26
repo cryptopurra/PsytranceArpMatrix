@@ -25,7 +25,7 @@ GeneratorContext ChannelMatrix::contextFor (int c) const noexcept
     ctx.lockToScale = lock;
     ctx.density = density;
     ctx.octaveShift = octaves[(size_t) juce::jlimit (0, kNumChannels - 1, c)];
-    ctx.isResponse = c != questionChannel();
+    ctx.isResponse = isAnswer (c);
     return ctx;
 }
 
@@ -116,6 +116,74 @@ bool ChannelMatrix::anyBarLocked (int c) const noexcept
     return false;
 }
 
+std::array<Step, 16> ChannelMatrix::copyBar (int c, int bar) const
+{
+    std::array<Step, 16> out {};
+    if (c < 0 || c >= kNumChannels || bar < 0 || bar >= kMaxSteps / 16)
+        return out;
+    for (int i = 0; i < 16; ++i)
+        out[(size_t) i] = pattern.channels[(size_t) c].steps[(size_t) (bar * 16 + i)];
+    return out;
+}
+
+void ChannelMatrix::pasteBar (int c, int bar, const std::array<Step, 16>& steps)
+{
+    if (c < 0 || c >= kNumChannels || bar < 0 || bar >= kMaxSteps / 16)
+        return;
+    if (getLength() < (bar + 1) * 16)
+        setLength ((bar + 1) * 16);
+    auto& ch = pattern.channels[(size_t) c];
+    for (int i = 0; i < 16; ++i)
+        ch.steps[(size_t) (bar * 16 + i)] = steps[(size_t) i];
+    ch.userEdited = true;
+    touch();
+}
+
+void ChannelMatrix::clearBar (int c, int bar)
+{
+    if (c < 0 || c >= kNumChannels || bar < 0 || bar >= kMaxSteps / 16)
+        return;
+    auto& ch = pattern.channels[(size_t) c];
+    for (int i = 0; i < 16; ++i)
+        ch.steps[(size_t) (bar * 16 + i)].active = false;
+    ch.userEdited = true;
+    touch();
+}
+
+void ChannelMatrix::setBarMuted (int c, int bar, bool muted)
+{
+    if (c >= 0 && c < kNumChannels && bar >= 0 && bar < kMaxSteps / 16)
+    {
+        pattern.channels[(size_t) c].barMuted[(size_t) bar] = muted;
+        originals[(size_t) c].barMuted[(size_t) bar] = muted;
+    }
+    touch();
+}
+
+bool ChannelMatrix::isBarMuted (int c, int bar) const noexcept
+{
+    return c >= 0 && c < kNumChannels && bar >= 0 && bar < kMaxSteps / 16 && pattern.channels[(size_t) c].barMuted[(size_t) bar];
+}
+
+void ChannelMatrix::setRole (int c, int role) noexcept
+{
+    if (c >= 0 && c < kNumChannels)
+        roles[(size_t) c] = juce::jlimit (0, 2, role);
+    touch();
+}
+
+bool ChannelMatrix::isAnswer (int c) const noexcept
+{
+    const int r = getRole (c);
+    if (r == 1) return false;
+    if (r == 2) return true;
+    // automatic: an explicit "call" channel asks, otherwise the first active channel asks
+    for (int i = 0; i < kNumChannels; ++i)
+        if (roles[(size_t) i] == 1 && pattern.channels[(size_t) i].enabled)
+            return true;
+    return c != questionChannel();
+}
+
 void ChannelMatrix::restoreLockedBars (const Pattern& before) noexcept
 {
     for (int c = 0; c < kNumChannels; ++c)
@@ -138,6 +206,7 @@ void ChannelMatrix::regenerateChannel (int c)
 
     fresh.enabled = ch.enabled;
     fresh.midiChannel = ch.midiChannel;
+    fresh.barMuted = ch.barMuted;
     fresh.userEdited = false;
     ch = fresh;
     everGenerated[(size_t) c] = true;

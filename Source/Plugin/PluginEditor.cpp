@@ -105,7 +105,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         pageButtons[(size_t) i].setButtonText (pageNames[i]);
         pageButtons[(size_t) i].setClickingTogglesState (false);
         pageButtons[(size_t) i].onClick = [this, i] { setPage (i); };
-        pageButtons[(size_t) i].onRightClick = [this, i]
+        pageButtons[(size_t) i].onRightClick = [this, i] { showBarMenu (i); };
+        pageButtons[(size_t) i].onDoubleClick = [this, i]
         {
             const int c = proc.ui.selectedChannel;
             const bool lock = ! proc.getMatrix().isBarLocked (c, i);
@@ -113,8 +114,9 @@ PluginEditor::PluginEditor (PluginProcessor& p)
             setStatus ((lock ? "Locked bar " : "Unlocked bar ") + juce::String (i + 1) + " of channel " + juce::String (c + 1)
                        + (lock ? " (kept by Roll / Generate)" : ""));
         };
-        pageButtons[(size_t) i].setTooltip ("Left click: show these 16 steps. Right click: lock / unlock this bar "
-                                             "for the selected channel, so Roll / Generate do not change it.");
+        pageButtons[(size_t) i].setTooltip ("Click: show these 16 steps.  Double-click: lock / unlock this bar for the "
+                                             "selected channel (Roll / Generate keep it).  Right-click: copy / paste / "
+                                             "mute / clear / lock menu.");
         content.addAndMakeVisible (pageButtons[(size_t) i]);
     }
 
@@ -185,6 +187,18 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addCaption (octaveBox, "OCT");
     addCaption (octRangeBox, "OCT RANGE");
 
+    varTargetBox.addItemList ({ "ALL CH", "CH 1", "CH 2", "CH 3", "CH 4" }, 1);
+    varTargetBox.setScrollWheelEnabled (true);
+    varTargetBox.setTooltip ("Which channel NEW VARIATION / ORIGINAL act on");
+    varTargetBox.setSelectedItemIndex (proc.ui.varTarget, juce::dontSendNotification);
+    varTargetBox.onChange = [this] { proc.ui.varTarget = juce::jmax (0, varTargetBox.getSelectedItemIndex()); };
+    content.addAndMakeVisible (varTargetBox);
+    addCaption (varTargetBox, "VAR ON");
+
+    addToggle (muteAllToggle, ParamID::muteAll, "MUTE ALL",
+               "Stop all MIDI output (automate it, or link it to the track mute: Cubase does not tell plugins when a track is muted)");
+
+    newVarButton.setButtonText ("NEW VAR");
     newVarButton.onClick   = [this] { proc.newVariation(); setStatus ("New variation"); };
     originalButton.onClick = [this] { proc.restoreOriginal(); setStatus ("Original pattern restored"); };
     saveMidiButton.onClick = [this]
@@ -370,21 +384,24 @@ void PluginEditor::layoutContent()
 
     bottom.removeFromTop (6);
     auto row2 = bottom.removeFromTop (44);
-    placeWithCaption (varStyleBox, row2.removeFromLeft (130).reduced (3, 0));
-    newVarButton.setBounds (row2.removeFromLeft (124).withTrimmedTop (16).reduced (3, 0));
-    originalButton.setBounds (row2.removeFromLeft (90).withTrimmedTop (16).reduced (3, 0));
-    keyFollowToggle.setBounds (row2.removeFromLeft (110).withTrimmedTop (16));
-    freeRunToggle.setBounds (row2.removeFromLeft (100).withTrimmedTop (16));
+    placeWithCaption (varStyleBox, row2.removeFromLeft (120).reduced (3, 0));
+    placeWithCaption (varTargetBox, row2.removeFromLeft (82).reduced (3, 0));
+    newVarButton.setBounds (row2.removeFromLeft (80).withTrimmedTop (16).reduced (3, 0));
+    originalButton.setBounds (row2.removeFromLeft (86).withTrimmedTop (16).reduced (3, 0));
+    keyFollowToggle.setBounds (row2.removeFromLeft (104).withTrimmedTop (16));
+    freeRunToggle.setBounds (row2.removeFromLeft (92).withTrimmedTop (16));
     placeWithCaption (outputBox, row2.removeFromLeft (130).reduced (3, 0));
 
     bottom.removeFromTop (6);
     auto row3 = bottom.removeFromTop (34);
-    dragSource.setBounds (row3.removeFromLeft (300));
+    dragSource.setBounds (row3.removeFromLeft (250));
     row3.removeFromLeft (8);
     multitrackToggle.setBounds (row3.removeFromLeft (80));
     saveMidiButton.setBounds (row3.removeFromLeft (110).reduced (2, 2));
     row3.removeFromLeft (16);
-    sizeBox.setBounds (row3.removeFromLeft (150).reduced (2, 3));
+    sizeBox.setBounds (row3.removeFromLeft (140).reduced (2, 3));
+    row3.removeFromLeft (8);
+    muteAllToggle.setBounds (row3.removeFromLeft (100));
     if (auto it = captions.find (&sizeBox); it != captions.end())
         it->second->setBounds (sizeBox.getBounds().translated (0, -16).withHeight (16));
 
@@ -451,6 +468,77 @@ void PluginEditor::setPage (int p)
         s->setPage (p);
 }
 
+void PluginEditor::showBarMenu (int bar)
+{
+    const int c = proc.ui.selectedChannel;
+    const auto& m = proc.getMatrix();
+    const bool inLength = bar * 16 < m.getLength();
+    const juce::String name = "bar " + juce::String (bar * 16 + 1) + "-" + juce::String (bar * 16 + 16)
+                            + " of CH " + juce::String (c + 1);
+
+    juce::PopupMenu menu;
+    menu.addSectionHeader (name);
+    menu.addItem (1, "Copy", inLength);
+    menu.addItem (2, "Paste", hasBarClipboard);
+    menu.addItem (3, "Paste to all bars", hasBarClipboard);
+    menu.addSeparator();
+    menu.addItem (4, m.isBarMuted (c, bar) ? "Unmute" : "Mute", inLength);
+    menu.addItem (5, m.isBarLocked (c, bar) ? "Unlock" : "Lock (keep on Roll / Generate)");
+    menu.addItem (6, "Clear", inLength);
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (&pageButtons[(size_t) bar]),
+                        [this, c, bar] (int r)
+    {
+        auto& mm = proc.getMatrix();
+        switch (r)
+        {
+            case 1:
+                barClipboard = mm.copyBar (c, bar);
+                hasBarClipboard = true;
+                setStatus ("Copied bar " + juce::String (bar + 1) + " of channel " + juce::String (c + 1));
+                break;
+            case 2:
+            {
+                const auto clip = barClipboard;
+                proc.editMatrix ([c, bar, clip] (ChannelMatrix& x) { x.pasteBar (c, bar, clip); });
+                setStatus ("Pasted into bar " + juce::String (bar + 1) + " of channel " + juce::String (c + 1));
+                break;
+            }
+            case 3:
+            {
+                const auto clip = barClipboard;
+                proc.editMatrix ([c, clip] (ChannelMatrix& x)
+                {
+                    const int bars = juce::jmax (1, x.getLength() / 16);
+                    for (int b = 0; b < bars; ++b)
+                        x.pasteBar (c, b, clip);
+                });
+                setStatus ("Pasted into every bar of channel " + juce::String (c + 1));
+                break;
+            }
+            case 4:
+            {
+                const bool mute = ! mm.isBarMuted (c, bar);
+                proc.editMatrix ([c, bar, mute] (ChannelMatrix& x) { x.setBarMuted (c, bar, mute); });
+                setStatus ((mute ? "Muted bar " : "Unmuted bar ") + juce::String (bar + 1) + " of channel " + juce::String (c + 1));
+                break;
+            }
+            case 5:
+            {
+                const bool lock = ! mm.isBarLocked (c, bar);
+                proc.editMatrix ([c, bar, lock] (ChannelMatrix& x) { x.setBarLocked (c, bar, lock); });
+                break;
+            }
+            case 6:
+                proc.editMatrix ([c, bar] (ChannelMatrix& x) { x.clearBar (c, bar); });
+                break;
+            default:
+                break;
+        }
+        refreshAll();
+    });
+}
+
 void PluginEditor::updatePageButtons()
 {
     const int c = proc.ui.selectedChannel;
@@ -459,13 +547,16 @@ void PluginEditor::updatePageButtons()
     {
         auto& b = pageButtons[(size_t) i];
         const bool locked = proc.getMatrix().isBarLocked (c, i);
-        b.setButtonText (locked ? juce::String::fromUTF8 ("\xe2\x96\xa0 ") + names[i] : juce::String (names[i]));
+        const bool muted = proc.getMatrix().isBarMuted (c, i);
+        b.setButtonText ((locked ? juce::String::fromUTF8 ("\xe2\x96\xa0 ") : juce::String())
+                         + (muted ? "M " : "") + names[i]);
+        b.setColour (juce::TextButton::textColourOffId, muted ? juce::Colours::white.withAlpha (0.4f) : juce::Colours::white);
         auto col = i == page ? kAccent.darker (0.4f) : juce::Colour (0xff15304a);
         if (locked)
             col = col.interpolatedWith (juce::Colour (0xffff9d3b), 0.6f);
         b.setColour (juce::TextButton::buttonColourId, col);
     }
-    pagesCaption.setText ("BARS  CH " + juce::String (c + 1) + "  (right-click = lock)", juce::dontSendNotification);
+    pagesCaption.setText ("BARS  CH " + juce::String (c + 1) + "  (double-click = lock, right-click = menu)", juce::dontSendNotification);
 }
 
 void PluginEditor::refreshAll()
@@ -477,7 +568,7 @@ void PluginEditor::refreshAll()
 
     const int len = proc.getMatrix().getLength();
     for (int i = 0; i < 4; ++i)
-        pageButtons[(size_t) i].setEnabled (i * 16 < len);
+        pageButtons[(size_t) i].setAlpha (i * 16 < len ? 1.0f : 0.55f); // still clickable: paste can extend the length
     updatePageButtons();
     if (page * 16 >= len)
         setPage (0);

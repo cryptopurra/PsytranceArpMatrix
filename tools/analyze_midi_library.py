@@ -37,7 +37,8 @@ DEFAULT_EXCLUDE = [
 CATEGORY_RULES = [
     ("acid",  ["acid"]),
     ("bass",  ["bass", "deepsy", "rolling", "groove"]),
-    ("stab",  ["rhythmic", "stab", "hit", "perc", "step and hold"]),
+    ("rhythmic", ["rhythmic", "perc", "step and hold"]),
+    ("stab",  ["stab", "hit"]),
     ("lead",  ["lead", "melod", "riff", "goa", "stepsy", "melody", "cyber flows"]),
     ("arp",   ["arp", "seq", "arpsy", "freaky", "triom", "spectrosense", "outerverse",
                "dimensions", "serum", "function", "dm7", "dimension", "edm"]),
@@ -220,6 +221,8 @@ def main():
                 skipped["excluded"] += 1
                 continue
             cat = categorise(low)
+            if cat == "rhythmic":
+                cat = "stab"  # one statistical profile for stabs and rhythmics
             if cat is None:
                 skipped["uncategorised"] += 1
                 continue

@@ -16,7 +16,7 @@ namespace
 
 PianoRollComponent::PianoRollComponent (PluginProcessor& p, int c) : proc (p), channel (c)
 {
-    setWantsKeyboardFocus (false);
+    setWantsKeyboardFocus (true); // arrows / delete on the selected notes
     centreOnNotes();
 }
 
@@ -392,9 +392,61 @@ bool PianoRollComponent::isOnLaneBorder (juce::Point<int> p) const
     return lane != Lane::None && p.x > keyboardWidth && std::abs (p.y - (laneArea().getY() - 1)) <= 4;
 }
 
+void PianoRollComponent::startPreview (int note)
+{
+    if (note == previewingNote)
+        return;
+    stopPreview();
+    previewingNote = note;
+    proc.previewNote (channel, note, 100);
+}
+
+void PianoRollComponent::stopPreview()
+{
+    if (previewingNote >= 0)
+        proc.previewNote (channel, previewingNote, 0);
+    previewingNote = -1;
+}
+
+bool PianoRollComponent::keyPressed (const juce::KeyPress& key)
+{
+    if (selected.none())
+        return false;
+
+    const bool shift = key.getModifiers().isShiftDown();
+    int dStep = 0, dNote = 0;
+    if (key.getKeyCode() == juce::KeyPress::leftKey)       dStep = shift ? -16 : -1;
+    else if (key.getKeyCode() == juce::KeyPress::rightKey) dStep = shift ? 16 : 1;
+    else if (key.getKeyCode() == juce::KeyPress::upKey)    dNote = shift ? 12 : 1;
+    else if (key.getKeyCode() == juce::KeyPress::downKey)  dNote = shift ? -12 : -1;
+    else if (key.getKeyCode() == juce::KeyPress::deleteKey || key.getKeyCode() == juce::KeyPress::backspaceKey)
+    {
+        proc.beginGesture();
+        deleteSelection();
+        proc.endGesture();
+        return true;
+    }
+    else
+        return false;
+
+    proc.beginGesture();
+    dragOrigin = channelData().steps;
+    dragSelection = selected;
+    moveSelection (dStep, dNote);
+    proc.endGesture();
+    return true;
+}
+
 void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
 {
     drag = Drag::None;
+    grabKeyboardFocus();
+
+    if (e.x < keyboardWidth && noteArea().getVerticalRange().contains (e.y))
+    {
+        startPreview (yToNote (e.position.y)); // play the key on the synth
+        return;
+    }
 
     if (e.mods.isMiddleButtonDown())
     {
@@ -468,6 +520,8 @@ void PianoRollComponent::mouseDown (const juce::MouseEvent& e)
         dragStartGate = channelData().steps[(size_t) n].gate;
         lastDStep = lastDNote = 0;
         drag = edge ? Drag::Resize : Drag::Move;
+        if (drag == Drag::Move)
+            startPreview (channelData().steps[(size_t) n].note);
         repaint();
         return;
     }
@@ -563,9 +617,12 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
             const int dNote = juce::roundToInt (-e.getDistanceFromDragStartY() / rowHeight);
             if (dStep != lastDStep || dNote != lastDNote)
             {
+                const bool pitchChanged = dNote != lastDNote;
                 lastDStep = dStep;
                 lastDNote = dNote;
                 moveSelection (dStep, dNote);
+                if (pitchChanged)
+                    startPreview (juce::jlimit (0, 127, dragOrigin[(size_t) dragStep].note + dNote));
             }
             break;
         }
@@ -577,6 +634,7 @@ void PianoRollComponent::mouseDrag (const juce::MouseEvent& e)
 
 void PianoRollComponent::mouseUp (const juce::MouseEvent&)
 {
+    stopPreview();
     drag = Drag::None;
     dragStep = -1;
     proc.endGesture();

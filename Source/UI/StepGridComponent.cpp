@@ -64,6 +64,12 @@ void StepGridComponent::paint (juce::Graphics& g)
             }
         }
 
+        if (inLength && ch.barMuted[(size_t) (s / 16)])
+        {
+            g.setColour (juce::Colours::black.withAlpha (0.5f)); // muted bar
+            g.fillRoundedRectangle (r, 3.0f);
+        }
+
         if (s == playing && enabled)
         {
             g.setColour (juce::Colours::white.withAlpha (0.8f));

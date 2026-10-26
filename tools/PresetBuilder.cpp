@@ -117,12 +117,26 @@ int main (int argc, char** argv)
         { "Melodic_Leads", "Prog_Dorian_Hypno", "Progressive dorian hypnotic arp", "A", "Dorian", 138, 32, 0.9f, { { S::FMLead } }, 34 },
         { "Melodic_Leads", "Goa_Double_Harmonic", "Goa-style double harmonic lead", "E", "Double Harmonic Major", 146, 32, 1.0f, { { S::LeadSynth } }, 35 },
 
-        // ---- Stabs_Rhythmics ----------------------------------------------------
-        { "Stabs_Rhythmics", "Offbeat_Stabs_01", "Chord stabs on tension points 4-8-12-16", "F#", "Natural Minor / Aeolian", 142, 16, 1.0f, { { S::RhythmStab } }, 41 },
-        { "Stabs_Rhythmics", "Perc_Stab_Matrix", "Full 4-channel matrix: acid, FM lead, lead, stabs", "F#", "Phrygian", 143, 32, 1.0f, { { S::Acid }, { S::FMLead }, { S::LeadSynth }, { S::RhythmStab } }, 42 },
-        { "Stabs_Rhythmics", "Stab_Pump_Minor_Penta", "Pentatonic stabs", "G", "Minor Pentatonic", 140, 16, 1.1f, { { S::RhythmStab } }, 43 },
-        { "Stabs_Rhythmics", "Bass_Stab_Groove", "Rolling bass with stab punctuation", "D", "Phrygian", 145, 16, 1.0f, { { S::RollingBass }, { S::RhythmStab } }, 44 },
-        { "Stabs_Rhythmics", "FullOn_Matrix_4ch", "Bass, acid, FM lead and stabs", "A", "Harmonic Minor", 146, 32, 1.0f, { { S::RollingBass }, { S::Acid, 1 }, { S::FMLead }, { S::RhythmStab } }, 45 },
+        // ---- Arpeggios -----------------------------------------------------------
+        { "Arpeggios", "Classic_Up_Phrygian", "Broken-chord arpeggio over i - VI - VII", "F#", "Phrygian", 143, 32, 1.0f, { { S::Arpeggio } }, 51 },
+        { "Arpeggios", "Pendulum_Harmonic", "Root-fifth-octave pendulum, harmonic minor", "E", "Harmonic Minor", 145, 32, 1.0f, { { S::Arpeggio } }, 52 },
+        { "Arpeggios", "Twilight_Sweep_Hungarian", "Two-octave sweeping arp", "D", "Hungarian Minor", 148, 64, 1.0f, { { S::Arpeggio } }, 53 },
+        { "Arpeggios", "Prog_Arp_Dorian", "Progressive dorian arpeggio", "A", "Dorian", 138, 32, 0.9f, { { S::Arpeggio } }, 54 },
+        { "Arpeggios", "Arp_Plus_Rolling_Bass", "Arpeggio over a rolling bass", "G", "Phrygian Dominant", 145, 32, 1.0f, { { S::RollingBass }, { S::Arpeggio } }, 55 },
+
+        // ---- Stabs ----------------------------------------------------------------
+        { "Stabs", "Offbeat_Stabs_01", "Chord stabs on tension points 4-8-12-16", "F#", "Natural Minor / Aeolian", 142, 16, 1.0f, { { S::RhythmStab } }, 41 },
+        { "Stabs", "Stab_Pump_Minor_Penta", "Pentatonic stabs", "G", "Minor Pentatonic", 140, 16, 1.1f, { { S::RhythmStab } }, 43 },
+        { "Stabs", "Bass_Stab_Groove", "Rolling bass with stab punctuation", "D", "Phrygian", 145, 16, 1.0f, { { S::RollingBass }, { S::RhythmStab } }, 44 },
+        { "Stabs", "Perc_Stab_Matrix", "Full 4-channel matrix: acid, FM lead, lead, stabs", "F#", "Phrygian", 143, 32, 1.0f, { { S::Acid }, { S::FMLead }, { S::LeadSynth }, { S::RhythmStab } }, 42 },
+        { "Stabs", "FullOn_Matrix_4ch", "Bass, acid, FM lead and stabs", "A", "Harmonic Minor", 146, 32, 1.0f, { { S::RollingBass }, { S::Acid, 1 }, { S::FMLead }, { S::RhythmStab } }, 45 },
+
+        // ---- Rhythmics ------------------------------------------------------------
+        { "Rhythmics", "Rhythmic_Pulse_01", "Single-note syncopated pulse", "F#", "Phrygian", 142, 16, 1.0f, { { S::Rhythmic } }, 61 },
+        { "Rhythmics", "Step_And_Hold_Minor", "Step & hold rhythm on root and fifth", "E", "Natural Minor / Aeolian", 145, 32, 1.0f, { { S::Rhythmic } }, 62 },
+        { "Rhythmics", "Offbeat_Rhythm_PhrygDom", "Off-beat rhythmic layer", "G", "Phrygian Dominant", 146, 16, 1.1f, { { S::Rhythmic } }, 63 },
+        { "Rhythmics", "Rhythm_vs_Acid", "Rhythmic pulse answering an acid line", "A", "Phrygian", 144, 32, 1.0f, { { S::Acid }, { S::Rhythmic } }, 64 },
+        { "Rhythmics", "Twilight_Rhythm_InSen", "Dark In Sen rhythmic pattern", "C#", "In Sen", 148, 16, 0.9f, { { S::Rhythmic } }, 65 },
     };
 
     PresetManager pm (out);

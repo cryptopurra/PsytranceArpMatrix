@@ -62,6 +62,10 @@ juce::var PatternSerializer::toVar (const Pattern& p, const PresetMeta& meta)
         co->setProperty ("style", juce::String (styleName (ch.style)));
         co->setProperty ("midiChannel", ch.midiChannel);
         co->setProperty ("length", ch.length);
+        juce::Array<juce::var> muted;
+        for (auto b : ch.barMuted)
+            muted.add (b);
+        co->setProperty ("mutedBars", muted);
 
         juce::Array<juce::var> steps;
         for (int s = 0; s < ch.length; ++s)
@@ -125,6 +129,9 @@ bool PatternSerializer::fromVar (const juce::var& v, Pattern& out, PresetMeta* m
         ch.style = styleFromName (cv.getProperty ("style", styleName (ch.style)).toString().toRawUTF8());
         ch.midiChannel = juce::jlimit (1, 16, (int) cv.getProperty ("midiChannel", c + 1));
         ch.length = juce::jlimit (1, kMaxSteps, (int) cv.getProperty ("length", globalLength));
+        if (const auto* muted = cv["mutedBars"].getArray())
+            for (int b = 0; b < juce::jmin (muted->size(), kMaxSteps / 16); ++b)
+                ch.barMuted[(size_t) b] = (bool) muted->getReference (b);
 
         if (const auto* steps = cv["steps"].getArray())
         {

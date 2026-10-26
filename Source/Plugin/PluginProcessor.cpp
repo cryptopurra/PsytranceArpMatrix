@@ -66,6 +66,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::keyFollow, 1 }, "Key Follow", false));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::freeRun, 1 }, "Play Without Keys", true));
     l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::mergeOut, 1 }, "MIDI Output: Master Ch 1", false));
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { ParamID::muteAll, 1 }, "Mute All (no MIDI out)", false));
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { ParamID::varStyle, 1 }, "Variation Style", PatternSerializer::variationStyleNames(), 0));
     l.add (std::make_unique<AudioParameterFloat>  (ParameterID { ParamID::varAmount, 1 }, "Variation", NormalisableRange<float> (0.0f, 100.0f, 1.0f), 65.0f, pct));
 
@@ -85,6 +86,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout PluginProcessor::createLayou
                                                        c == 0 ? 1 : 0));
         l.add (std::make_unique<AudioParameterInt> (ParameterID { ParamID::channelGlide (c), 1 },
                                                     "Ch" + String (c + 1) + " Glide (CC5)", 0, 127, 0));
+        l.add (std::make_unique<AudioParameterBool> (ParameterID { ParamID::channelMute (c), 1 },
+                                                     "Ch" + String (c + 1) + " Mute", false));
     }
     return l;
 }
@@ -112,7 +115,9 @@ PluginProcessor::PluginProcessor()
         octParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelOct (c));
         voiceParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelVoice (c));
         glideParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelGlide (c));
+        muteParams[(size_t) c] = apvts.getRawParameterValue (ParamID::channelMute (c));
     }
+    muteAllParam = apvts.getRawParameterValue (ParamID::muteAll);
 
     presets.ensureFolderStructure();
     presets.installFactoryPresets (getFactoryPresets(), false);
@@ -178,6 +183,7 @@ ArpParams PluginProcessor::readArpParams() const
         p.voiceMode[(size_t) c] = (VoiceMode) juce::roundToInt (voiceParams[(size_t) c]->load());
         const int g = juce::roundToInt (glideParams[(size_t) c]->load());
         p.glide[(size_t) c] = g > 0 ? g : -1;
+        p.channelMuted[(size_t) c] = muteParams[(size_t) c]->load() > 0.5f || muteAllParam->load() > 0.5f;
     }
     return p;
 }
@@ -247,6 +253,31 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
 
     engine.process (midi, buffer.getNumSamples(), pos, audioPattern, readArpParams());
+
+    // note previews requested by the editor
+    {
+        const auto scope = previewFifo.read (previewFifo.getNumReady());
+        auto play = [&] (int start, int size)
+        {
+            for (int i = start; i < start + size; ++i)
+            {
+                const auto& ev = previewEvents[(size_t) i];
+                const int n = juce::jlimit (0, 127, ev.note);
+                if (ev.velocity > 0)
+                {
+                    midi.addEvent (juce::MidiMessage::noteOn (ev.channel, n, (juce::uint8) juce::jlimit (1, 127, ev.velocity)), 0);
+                    previewSounding[(size_t) n] = ev.channel + 1;
+                }
+                else if (previewSounding[(size_t) n] != 0)
+                {
+                    midi.addEvent (juce::MidiMessage::noteOff (previewSounding[(size_t) n] - 1, n), 0);
+                    previewSounding[(size_t) n] = 0;
+                }
+            }
+        };
+        play (scope.startIndex1, scope.blockSize1);
+        play (scope.startIndex2, scope.blockSize2);
+    }
 }
 
 void PluginProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -434,12 +465,14 @@ void PluginProcessor::newVariation()
 {
     const auto style = (VariationStyle) choiceIndex (apvts, ParamID::varStyle);
     const float amount = value (apvts, ParamID::varAmount) / 100.0f;
-    editMatrix ([=] (ChannelMatrix& m) { m.applyVariation (-1, style, amount); });
+    const int target = ui.varTarget - 1; // -1 = every active channel
+    editMatrix ([=] (ChannelMatrix& m) { m.applyVariation (target, style, amount); });
 }
 
 void PluginProcessor::restoreOriginal()
 {
-    editMatrix ([] (ChannelMatrix& m) { m.restoreOriginal (-1); });
+    const int target = ui.varTarget - 1;
+    editMatrix ([target] (ChannelMatrix& m) { m.restoreOriginal (target); });
 }
 
 bool PluginProcessor::importMidi (const juce::File& f, int targetChannel, juce::String& message)
@@ -532,6 +565,20 @@ MultiMidiExporter::Options PluginProcessor::exportOptions() const
     return o;
 }
 
+void PluginProcessor::previewNote (int c, int note, int velocity)
+{
+    c = juce::jlimit (0, kNumChannels - 1, c);
+    const bool master = value (apvts, ParamID::mergeOut) > 0.5f;
+    const int ch = master ? 1 : matrix.getPattern().channels[(size_t) c].midiChannel;
+    const int shifted = note + 12 * juce::roundToInt (value (apvts, ParamID::octave))
+                             + 12 * juce::roundToInt (octParams[(size_t) c]->load());
+    const auto scope = previewFifo.write (1);
+    if (scope.blockSize1 > 0)
+        previewEvents[(size_t) scope.startIndex1] = { ch, shifted, velocity };
+    else if (scope.blockSize2 > 0)
+        previewEvents[(size_t) scope.startIndex2] = { ch, shifted, velocity };
+}
+
 juce::StringArray PluginProcessor::createDragFiles (bool multitrack)
 {
     // unique folder per drag: hosts that reference the file (instead of copying) keep it intact
@@ -539,6 +586,9 @@ juce::StringArray PluginProcessor::createDragFiles (bool multitrack)
                                                        + juce::String (juce::Random::getSystemRandom().nextInt (10000)));
     auto p = matrix.getPattern();
     p.bpm = lastHostBpm;
+    for (int c = 0; c < kNumChannels; ++c)
+        if (muteParams[(size_t) c]->load() > 0.5f)
+            p.channels[(size_t) c].enabled = false; // muted channels are not exported
 
     juce::StringArray paths;
     if (multitrack)
@@ -560,6 +610,9 @@ juce::Array<juce::File> PluginProcessor::saveMidiToUserFolder (bool multitrack)
     auto dir = presets.getUserExportDir().getChildFile ("MIDI");
     auto p = matrix.getPattern();
     p.bpm = lastHostBpm;
+    for (int c = 0; c < kNumChannels; ++c)
+        if (muteParams[(size_t) c]->load() > 0.5f)
+            p.channels[(size_t) c].enabled = false;
     if (multitrack)
         return { MultiMidiExporter::exportMultiTrack (p, exportOptions(), dir) };
     return MultiMidiExporter::exportActiveChannels (p, exportOptions(), dir);
@@ -586,6 +639,10 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& dest)
         for (int b = 0; b < kMaxSteps / 16; ++b)
             locks << (matrix.isBarLocked (c, b) ? "1" : "0");
     state.setProperty ("barLocks", locks, nullptr);
+    juce::String roles;
+    for (int c = 0; c < kNumChannels; ++c)
+        roles << matrix.getRole (c);
+    state.setProperty ("roles", roles, nullptr);
 
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, dest);
@@ -628,6 +685,9 @@ void PluginProcessor::setStateInformation (const void* data, int size)
         for (int c = 0; c < kNumChannels; ++c)
             for (int b = 0; b < kMaxSteps / 16; ++b)
                 matrix.setBarLocked (c, b, locks.substring (c * 4 + b, c * 4 + b + 1) == "1");
+        const auto roles = tree.getProperty ("roles", "0000").toString();
+        for (int c = 0; c < kNumChannels; ++c)
+            matrix.setRole (c, roles.substring (c, c + 1).getIntValue());
     }
 
     publishPattern();
