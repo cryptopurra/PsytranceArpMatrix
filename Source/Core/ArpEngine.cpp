@@ -520,7 +520,7 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
     // cannot skip a step (a small backward jitter is covered by lastTriggeredStep)
     const double scanStart = (! jumped && lastPpqEnd >= 0.0) ? juce::jmin (ppqStart, lastPpqEnd) : ppqStart;
 
-    auto scan = [&] (double from, double to, double ppqAtSampleZero)
+    auto scan = [&] (double from, double to, double ppqAtSampleZero, int maxOffset = 1 << 30)
     {
         for (int c = 0; c < kNumChannels; ++c)
         {
@@ -541,7 +541,7 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
                 if (t < from || t >= to || k <= lastTriggeredStep[(size_t) c])
                     continue;
 
-                const int offset = juce::jlimit (0, numSamples - 1, (int) ((t - ppqAtSampleZero) / ppqPerSample));
+                const int offset = juce::jlimit (0, std::min (numSamples - 1, maxOffset), (int) ((t - ppqAtSampleZero) / ppqPerSample));
                 triggerChannel (c, k, offset, samplesPerStep, pattern, p, out);
                 lastTriggeredStep[(size_t) c] = k;
             }
@@ -556,17 +556,12 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
         scan (scanStart, pos.loopEnd, ppqStart);
         lastTriggeredStep.fill (-1);
         const double over = ppqEnd - pos.loopEnd;
-        if (p.loopDefer)
-        {
-            // do not put events after the wrap inside this block: the next block plays them at its start
-            endOfBlock = pos.loopStart;
-            smoothBlocks = 0;
-        }
-        else
-        {
-            scan (pos.loopStart, pos.loopStart + over, pos.loopStart - (pos.loopEnd - ppqStart));
-            endOfBlock = pos.loopStart + over;
-        }
+        // LOOP FIX: events right after the wrap are placed on the last sample before it, so no
+        // event of this block carries a song position beyond the end marker (1 sample early at most)
+        const int wrapOffset = (int) ((pos.loopEnd - ppqStart) / ppqPerSample);
+        const int maxOffset = p.loopDefer ? std::max (0, wrapOffset - 1) : (1 << 30);
+        scan (pos.loopStart, pos.loopStart + over, pos.loopStart - (pos.loopEnd - ppqStart), maxOffset);
+        endOfBlock = pos.loopStart + over;
     }
     else
     {

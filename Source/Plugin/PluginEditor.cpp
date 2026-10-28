@@ -230,8 +230,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     content.addAndMakeVisible (logToggle);
 
     loopFixToggle.setButtonText ("LOOP FIX");
-    loopFixToggle.setTooltip ("Test option for hosts with cycle problems: in the block that crosses the loop end, the notes after the "
-                              "wrap are played at the start of the next block instead of inside the crossing block.");
+    loopFixToggle.setTooltip ("Test option for hosts with cycle problems: in the block that crosses the loop end, the notes right after the "
+                              "wrap are placed on the last sample before the end marker (at most 1 sample early).");
     loopFixToggle.setToggleState (proc.isLoopDefer(), juce::dontSendNotification);
     loopFixToggle.onClick = [this]
     {
