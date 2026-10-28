@@ -229,6 +229,17 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     };
     content.addAndMakeVisible (logToggle);
 
+    loopFixToggle.setButtonText ("LOOP FIX");
+    loopFixToggle.setTooltip ("Test option for hosts with cycle problems: in the block that crosses the loop end, the notes after the "
+                              "wrap are played at the start of the next block instead of inside the crossing block.");
+    loopFixToggle.setToggleState (proc.isLoopDefer(), juce::dontSendNotification);
+    loopFixToggle.onClick = [this]
+    {
+        proc.setLoopDefer (loopFixToggle.getToggleState());
+        setStatus (loopFixToggle.getToggleState() ? "LOOP FIX on" : "LOOP FIX off");
+    };
+    content.addAndMakeVisible (loopFixToggle);
+
     newVarButton.setButtonText ("NEW VAR");
     newVarButton.onClick   = [this] { proc.newVariation(); setStatus ("New variation"); };
     originalButton.onClick = [this] { proc.restoreOriginal(); setStatus ("Original pattern restored"); };
@@ -404,6 +415,7 @@ void PluginEditor::layoutContent()
     detected.setJustificationType (juce::Justification::centredRight);
     detected.setBounds (statusRow.removeFromRight (statusRow.getWidth() / 2));
     logToggle.setBounds (statusRow.removeFromLeft (56));
+    loopFixToggle.setBounds (statusRow.removeFromLeft (96));
     status.setBounds (statusRow);
 
     auto knobs = bottom.removeFromLeft (300);

@@ -556,8 +556,17 @@ void ArpEngine::process (juce::MidiBuffer& midi, int numSamples, const Position&
         scan (scanStart, pos.loopEnd, ppqStart);
         lastTriggeredStep.fill (-1);
         const double over = ppqEnd - pos.loopEnd;
-        scan (pos.loopStart, pos.loopStart + over, pos.loopStart - (pos.loopEnd - ppqStart));
-        endOfBlock = pos.loopStart + over;
+        if (p.loopDefer)
+        {
+            // do not put events after the wrap inside this block: the next block plays them at its start
+            endOfBlock = pos.loopStart;
+            smoothBlocks = 0;
+        }
+        else
+        {
+            scan (pos.loopStart, pos.loopStart + over, pos.loopStart - (pos.loopEnd - ppqStart));
+            endOfBlock = pos.loopStart + over;
+        }
     }
     else
     {

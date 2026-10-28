@@ -144,7 +144,7 @@ private:
     juce::Slider swingKnob, gateKnob, velocityKnob, varAmountKnob;
     juce::ToggleButton keyFollowToggle, freeRunToggle, multitrackToggle;
     juce::ComboBox outputBox, sizeBox, varTargetBox;
-    juce::ToggleButton muteAllToggle, logToggle;
+    juce::ToggleButton muteAllToggle, logToggle, loopFixToggle;
     static juce::StringArray sizeNames();
     static juce::Point<int> sizeFor (int index);
     juce::TextButton newVarButton { "NEW VARIATION" }, originalButton { "ORIGINAL" }, saveMidiButton { "SAVE MIDI" };

@@ -19,6 +19,7 @@ struct ArpParams
     int   octave         = 0;     // -3..+3
     int   octaveRange    = 1;     // 1..4 (arp modes)
     int   holdVelocity   = 100;   // velocity knob
+    bool  loopDefer      = false; // block crossing the cycle end: play the part after the wrap at the next block start
     bool  lockToScale    = true;
     bool  keyFollow      = false; // held key transposes the sequencer channels (root key = no transposition)
     bool  playWithoutKeys = true; // pattern runs with transport even without held keys

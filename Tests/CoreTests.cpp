@@ -644,11 +644,12 @@ public:
             const double sr = 44100.0, tempo = 145.0;
             const double loopStart = 252.0, loopEnd = 284.0;
 
-            for (int variant = 0; variant < 2; ++variant) // 0: host splits blocks at the cycle, 1: it does not
+            for (int variant = 0; variant < 3; ++variant) // 0: host splits blocks at the cycle, 1: it does not, 2: it does not + LOOP FIX
             {
                 ArpEngine ce;
                 ce.prepare (sr);
                 ArpParams cpar;
+                cpar.loopDefer = variant == 2;
                 double q = loopStart;
                 std::map<std::pair<int,int>, bool> on;
                 int doubleOns = 0, sameSample = 0, wrong = 0, notes = 0, strayOffs = 0;

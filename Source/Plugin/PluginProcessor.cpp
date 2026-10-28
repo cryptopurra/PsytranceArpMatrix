@@ -180,6 +180,7 @@ void PluginProcessor::prepareToPlay (double sampleRate, int)
 ArpParams PluginProcessor::readArpParams() const
 {
     ArpParams p;
+    p.loopDefer       = loopDefer.load();
     p.swing           = value (apvts, ParamID::swing) / 100.0f;
     p.gateScale       = value (apvts, ParamID::gate) / 100.0f;
     p.octave          = juce::roundToInt (value (apvts, ParamID::octave));
@@ -922,6 +923,7 @@ void PluginProcessor::getStateInformation (juce::MemoryBlock& dest)
     state.setProperty ("uiLanes", lanes, nullptr);
     state.setProperty ("uiSizeV2", ui.sizeIndex, nullptr);
     state.setProperty ("uiSelected", ui.selectedChannel, nullptr);
+    state.setProperty ("loopDefer", loopDefer.load(), nullptr);
     state.setProperty ("uiGrid", juce::String (ui.gridFirst) + "," + juce::String (ui.gridCount), nullptr);
     {
         juce::StringArray vs;
@@ -974,6 +976,7 @@ void PluginProcessor::setStateInformation (const void* data, int size)
         }
         ui.sizeIndex = juce::jlimit (0, 5, (int) tree.getProperty ("uiSizeV2", 2));
         ui.selectedChannel = juce::jlimit (0, kNumChannels - 1, (int) tree.getProperty ("uiSelected", 0));
+        loopDefer.store ((bool) tree.getProperty ("loopDefer", false));
         showChannelInProxies (ui.selectedChannel);
         const auto grid = juce::StringArray::fromTokens (tree.getProperty ("uiGrid", "0,16").toString(), ",", "");
         if (grid.size() == 2)

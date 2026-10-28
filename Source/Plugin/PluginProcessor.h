@@ -137,6 +137,8 @@ public:
 
     /** Diagnostic log: one CSV row per audio block (host position, loop, block size, notes out),
         to find timing problems that only show up inside a particular host. */
+    void setLoopDefer (bool on) noexcept            { loopDefer.store (on); }
+    bool isLoopDefer() const noexcept               { return loopDefer.load(); }
     void setDiagnosticLog (bool on);
     bool isDiagnosticLog() const noexcept           { return logOn.load(); }
     juce::File getDiagnosticLogFile() const;
@@ -208,6 +210,7 @@ private:
     juce::AbstractFifo logFifo { kLogRows };
     std::vector<LogRow> logRows = std::vector<LogRow> ((size_t) kLogRows);
     std::atomic<bool> logOn { false };
+    std::atomic<bool> loopDefer { false };
     juce::uint64 logBlock = 0;                    // audio thread
     std::unique_ptr<juce::FileOutputStream> logStream;
     int logWritten = 0;
