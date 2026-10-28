@@ -135,6 +135,12 @@ public:
     KeyDetection lastImportKey() const noexcept     { return importKey; }
     void panic() noexcept                           { panicRequested.store (true); }
 
+    /** Diagnostic log: one CSV row per audio block (host position, loop, block size, notes out),
+        to find timing problems that only show up inside a particular host. */
+    void setDiagnosticLog (bool on);
+    bool isDiagnosticLog() const noexcept           { return logOn.load(); }
+    juce::File getDiagnosticLogFile() const;
+
     std::function<void()> onMatrixChanged;          // editor hook (message thread)
 
     /** Editor-only state, saved with the project. */
@@ -187,6 +193,25 @@ private:
     void pushUndo (bool coalesce);
     void restoreSnapshot (const ChannelMatrix& m);
     bool wasBypassed = false;
+
+    struct LogRow
+    {
+        juce::uint64 block = 0;
+        int numSamples = 0;
+        bool playing = false, looping = false, hasPpq = false;
+        double ppq = 0.0, bpm = 0.0, loopStart = 0.0, loopEnd = 0.0;
+        juce::int64 timeSamples = -1;
+        juce::uint64 hostNs = 0;
+        int noteOns = 0, firstOffset = -1, lastOffset = -1, firstNote = -1, firstChannel = -1, noteOffs = 0;
+    };
+    static constexpr int kLogRows = 16384;
+    juce::AbstractFifo logFifo { kLogRows };
+    std::vector<LogRow> logRows = std::vector<LogRow> ((size_t) kLogRows);
+    std::atomic<bool> logOn { false };
+    juce::uint64 logBlock = 0;                    // audio thread
+    std::unique_ptr<juce::FileOutputStream> logStream;
+    int logWritten = 0;
+    void drainLog();
     std::array<std::atomic<float>*, kNumChannels> octParams {}, voiceParams {}, glideParams {}, muteParams {},
                                                   divParams {}, modeParams {}, velModeParams {}, holdParams {};
     std::atomic<bool> proxyDirty { false };

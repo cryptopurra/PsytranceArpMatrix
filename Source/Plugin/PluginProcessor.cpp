@@ -150,6 +150,10 @@ PluginProcessor::PluginProcessor()
     publishPattern();
 
     startTimerHz (4);
+
+    // headless diagnostics (tests, bug reports): PAM_DIAGNOSTIC_LOG=1 starts the log at load
+    if (juce::SystemStats::getEnvironmentVariable ("PAM_DIAGNOSTIC_LOG", {}) == "1")
+        setDiagnosticLog (true);
 }
 
 PluginProcessor::~PluginProcessor()
@@ -236,10 +240,16 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 
     ArpEngine::Position pos;
     pos.allowInternalClock = wrapperType == wrapperType_Standalone;
+    juce::int64 dbgSamples = -1;
+    juce::uint64 dbgNs = 0;
     if (auto* ph = getPlayHead())
     {
         if (auto info = ph->getPosition())
         {
+            if (auto ts = info->getTimeInSamples())
+                dbgSamples = *ts;
+            if (auto ns = info->getHostTimeNs())
+                dbgNs = *ns;
             pos.hostPlaying = info->getIsPlaying();
             if (auto ppq = info->getPpqPosition())
             {
@@ -266,6 +276,43 @@ void PluginProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     }
 
     engine.process (midi, buffer.getNumSamples(), pos, audioPattern, readArpParams());
+
+    if (logOn.load())
+    {
+        LogRow r;
+        r.block = logBlock++;
+        r.numSamples = buffer.getNumSamples();
+        r.playing = pos.hostPlaying;
+        r.looping = pos.isLooping;
+        r.hasPpq = pos.hasHostPosition;
+        r.ppq = pos.ppq;
+        r.bpm = pos.bpm;
+        r.loopStart = pos.loopStart;
+        r.loopEnd = pos.loopEnd;
+        r.timeSamples = dbgSamples;
+        r.hostNs = dbgNs;
+        for (const auto meta : midi)
+        {
+            const auto m = meta.getMessage();
+            if (m.isNoteOn())
+            {
+                if (r.noteOns++ == 0)
+                {
+                    r.firstOffset = meta.samplePosition;
+                    r.firstNote = m.getNoteNumber();
+                    r.firstChannel = m.getChannel();
+                }
+                r.lastOffset = meta.samplePosition;
+            }
+            else if (m.isNoteOff())
+                ++r.noteOffs;
+        }
+        const auto scope = logFifo.write (1);
+        if (scope.blockSize1 > 0)
+            logRows[(size_t) scope.startIndex1] = r;
+        else if (scope.blockSize2 > 0)
+            logRows[(size_t) scope.startIndex2] = r;
+    }
 
     // note previews requested by the editor
     {
@@ -392,8 +439,74 @@ void PluginProcessor::handleAsyncUpdate()
         onMatrixChanged();
 }
 
+juce::File PluginProcessor::getDiagnosticLogFile() const
+{
+    return presets.getRoot().getChildFile ("diagnostic_log.csv");
+}
+
+void PluginProcessor::setDiagnosticLog (bool on)
+{
+    if (on == logOn.load())
+        return;
+    if (on)
+    {
+        logFifo.reset();
+        logBlock = 0;
+        logWritten = 0;
+        auto f = getDiagnosticLogFile();
+        f.deleteFile();
+        logStream = f.createOutputStream();
+        if (logStream == nullptr)
+            return;
+        logStream->writeText (juce::String ("# Psytrance Arp Matrix v") + JucePlugin_VersionString
+                              + " sampleRate " + juce::String (getSampleRate(), 1)
+                              + " blockSize " + juce::String (getBlockSize()) + "\n"
+                              "block,numSamples,playing,looping,hasPpq,ppq,bpm,loopStart,loopEnd,timeSamples,hostNs,"
+                              "noteOns,firstOffset,lastOffset,firstNote,firstChannel,noteOffs\n",
+                              false, false, nullptr);
+        logOn.store (true);
+    }
+    else
+    {
+        logOn.store (false);
+        drainLog();
+        logStream.reset();
+    }
+}
+
+void PluginProcessor::drainLog()
+{
+    if (logStream == nullptr)
+        return;
+    const auto scope = logFifo.read (logFifo.getNumReady());
+    juce::String text;
+    auto add = [&] (int start, int size)
+    {
+        for (int i = start; i < start + size; ++i)
+        {
+            const auto& r = logRows[(size_t) i];
+            text << (juce::int64) r.block << ',' << r.numSamples << ',' << (r.playing ? 1 : 0) << ',' << (r.looping ? 1 : 0) << ','
+                 << (r.hasPpq ? 1 : 0) << ',' << juce::String (r.ppq, 6) << ',' << juce::String (r.bpm, 3) << ','
+                 << juce::String (r.loopStart, 6) << ',' << juce::String (r.loopEnd, 6) << ',' << r.timeSamples << ','
+                 << (juce::int64) r.hostNs << ',' << r.noteOns << ',' << r.firstOffset << ',' << r.lastOffset << ','
+                 << r.firstNote << ',' << r.firstChannel << ',' << r.noteOffs << '\n';
+            ++logWritten;
+        }
+    };
+    add (scope.startIndex1, scope.blockSize1);
+    add (scope.startIndex2, scope.blockSize2);
+    if (text.isNotEmpty())
+        logStream->writeText (text, false, false, nullptr);
+    if (logWritten > 400000) // safety: about 9 minutes at 256 samples
+    {
+        logOn.store (false);
+        logStream.reset();
+    }
+}
+
 void PluginProcessor::timerCallback()
 {
+    drainLog();
     keyTracker.decay (0.97f);
 
     if (value (apvts, ParamID::autoMatch) < 0.5f || keyTracker.notesSeen() < 6)

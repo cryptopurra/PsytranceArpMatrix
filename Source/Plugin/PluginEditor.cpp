@@ -216,6 +216,19 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     addToggle (muteAllToggle, ParamID::muteAll, "MUTE ALL",
                "Stop all MIDI output (automate it, or link it to the track mute: Cubase does not tell plugins when a track is muted)");
 
+    logToggle.setButtonText ("LOG");
+    logToggle.setTooltip ("Diagnostic: writes the host timing of every audio block (position, loop, block size, notes out) to "
+                          "Documents/PsytranceArpMatrix/diagnostic_log.csv while ON. Turn it ON, play the loop for a while "
+                          "until the problem shows, turn it OFF and send the file.");
+    logToggle.setToggleState (proc.isDiagnosticLog(), juce::dontSendNotification);
+    logToggle.onClick = [this]
+    {
+        proc.setDiagnosticLog (logToggle.getToggleState());
+        setStatus (logToggle.getToggleState() ? "LOG on: recording host timing..."
+                                              : "LOG saved: " + proc.getDiagnosticLogFile().getFullPathName());
+    };
+    content.addAndMakeVisible (logToggle);
+
     newVarButton.setButtonText ("NEW VAR");
     newVarButton.onClick   = [this] { proc.newVariation(); setStatus ("New variation"); };
     originalButton.onClick = [this] { proc.restoreOriginal(); setStatus ("Original pattern restored"); };
@@ -390,6 +403,7 @@ void PluginEditor::layoutContent()
     auto statusRow = bottom.removeFromBottom (18);
     detected.setJustificationType (juce::Justification::centredRight);
     detected.setBounds (statusRow.removeFromRight (statusRow.getWidth() / 2));
+    logToggle.setBounds (statusRow.removeFromLeft (56));
     status.setBounds (statusRow);
 
     auto knobs = bottom.removeFromLeft (300);
