@@ -56,14 +56,25 @@ void MonitorProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     for (const auto meta : midi)
     {
         const auto m = meta.getMessage();
-        if (! m.isNoteOnOrOff())
-            continue;
         auto r = base;
         r.offset = meta.samplePosition;
-        r.kind = m.isNoteOn() ? 1 : 2;
         r.channel = m.getChannel();
-        r.note = m.getNoteNumber();
-        r.velocity = m.getVelocity();
+        if (m.isNoteOnOrOff())
+        {
+            r.kind = m.isNoteOn() ? 1 : 2;
+            r.note = m.getNoteNumber();
+            r.velocity = m.getVelocity();
+        }
+        else
+        {
+            // everything else (all-notes-off, CC, pitch bend, ...): status byte and the two data bytes
+            r.kind = 3;
+            const auto* d = m.getRawData();
+            const int n = m.getRawDataSize();
+            r.status = n > 0 ? d[0] : 0;
+            r.note = n > 1 ? d[1] : 0;
+            r.velocity = n > 2 ? d[2] : 0;
+        }
         push (r);
     }
 }
@@ -83,7 +94,7 @@ void MonitorProcessor::timerCallback()
             blockCounter = 0;
             stream->writeText ("# PAM MIDI Monitor sampleRate " + juce::String (getSampleRate(), 1)
                                + " blockSize " + juce::String (getBlockSize()) + "\n"
-                               "block,numSamples,kind,playing,looping,ppq,bpm,loopStart,loopEnd,timeSamples,hostNs,offset,channel,note,velocity\n",
+                               "block,numSamples,kind,playing,looping,ppq,bpm,loopStart,loopEnd,timeSamples,hostNs,offset,channel,note,velocity,status\n",
                                false, false, nullptr);
             streamOpen.store (true);
         }
@@ -112,7 +123,7 @@ void MonitorProcessor::drain()
             text << r.block << ',' << r.numSamples << ',' << r.kind << ',' << (r.playing ? 1 : 0) << ',' << (r.looping ? 1 : 0) << ','
                  << juce::String (r.ppq, 6) << ',' << juce::String (r.bpm, 3) << ',' << juce::String (r.loopStart, 6) << ','
                  << juce::String (r.loopEnd, 6) << ',' << r.timeSamples << ',' << r.hostNs << ',' << r.offset << ','
-                 << r.channel << ',' << r.note << ',' << r.velocity << '\n';
+                 << r.channel << ',' << r.note << ',' << r.velocity << ',' << r.status << '\n';
         }
     };
     add (scope.startIndex1, scope.blockSize1);

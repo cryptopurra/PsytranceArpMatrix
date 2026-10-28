@@ -39,7 +39,7 @@ private:
     {
         juce::int64 block = 0, timeSamples = 0, hostNs = 0;
         double ppq = 0, loopStart = 0, loopEnd = 0, bpm = 0;
-        int numSamples = 0, offset = 0, kind = 0, channel = 0, note = 0, velocity = 0;
+        int numSamples = 0, offset = 0, kind = 0, channel = 0, note = 0, velocity = 0, status = 0;
         bool playing = false, looping = false;
     };
 
