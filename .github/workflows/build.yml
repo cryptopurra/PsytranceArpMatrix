@@ -89,6 +89,8 @@ jobs:
           mkdir -p "$OUT"
           ART=build/PsytranceArpMatrix_artefacts/${{ env.BUILD_TYPE }}
           cp -R "$ART/VST3" "$OUT/" || true
+          mkdir -p "$OUT/Diagnostic"
+          cp -R build/PamMidiMonitor_artefacts/${{ env.BUILD_TYPE }}/VST3 "$OUT/Diagnostic/" || true
           cp -R "$ART/Standalone" "$OUT/" || true
           if [ -d "$ART/AU" ]; then cp -R "$ART/AU" "$OUT/"; fi
           cp README.md LICENSE "$OUT/"

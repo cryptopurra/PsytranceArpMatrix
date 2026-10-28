@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PsytranceArpMatrix VERSION 0.9.3 LANGUAGES C CXX)
+project(PsytranceArpMatrix VERSION 0.9.4 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -84,6 +84,27 @@ if(PAM_BUILD_PLUGIN)
         AU_MAIN_TYPE                kAudioUnitType_MusicDevice)
 
     juce_generate_juce_header(PsytranceArpMatrix)
+
+    # Small diagnostic plugin: logs the MIDI notes a track really receives (see README)
+    juce_add_plugin(PamMidiMonitor
+        COMPANY_NAME                "PsyArpLab"
+        PLUGIN_MANUFACTURER_CODE    Psyl
+        PLUGIN_CODE                 Pmon
+        FORMATS                     VST3
+        PRODUCT_NAME                "PAM MIDI Monitor"
+        IS_SYNTH                    TRUE
+        NEEDS_MIDI_INPUT            TRUE
+        NEEDS_MIDI_OUTPUT           TRUE
+        COPY_PLUGIN_AFTER_BUILD     FALSE
+        VST3_CATEGORIES             Instrument Synth)
+    target_sources(PamMidiMonitor PRIVATE Source/Monitor/MonitorProcessor.cpp)
+    target_compile_definitions(PamMidiMonitor PUBLIC
+        ${PAM_HEADLESS_DEFS}
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_DISPLAY_SPLASH_SCREEN=0)
+    target_link_libraries(PamMidiMonitor
+        PRIVATE juce::juce_audio_utils juce::juce_audio_processors
+        PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
     # Factory presets are embedded and installed to Documents/PsytranceArpMatrix on first run
     file(GLOB_RECURSE PAM_PRESET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Resources/PsytranceArpMatrix/Presets/*.json)
